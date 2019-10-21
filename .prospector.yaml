@@ -1,0 +1,25 @@
+output-format: text
+
+strictness: medium
+test-warnings: true
+doc-warnings: false
+
+ignore-paths:
+  - .mypy_cache
+  - .pytest_cache
+  - .tox
+  - build
+  - tests
+
+pep8:
+  disable:
+    - E741
+  options:
+    max-line-length: 120
+
+pylint:
+  disable:
+    - len-as-condition
+    - logging-fstring-interpolation
+    - no-else-return
+    - useless-import-alias

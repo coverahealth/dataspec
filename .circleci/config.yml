@@ -1,0 +1,39 @@
+version: 2
+jobs:
+  test-cpython:
+    docker:
+      - image: chrisrink10/pyenv:3.6-3.7-3.8-0.0.1
+        user: pyenv
+    steps:
+      - checkout
+      - restore_cache:
+          key: deps-{{ .Branch }}-{{ checksum "requirements.txt" }}
+      - run:
+          name: Install tox
+          shell: /bin/bash -leo pipefail
+          command: |
+            pip install tox
+      - run:
+          name: Run Tests
+          shell: /bin/bash -leo pipefail
+          environment:
+            TOX_NUM_CORES: 2
+            TOX_SHOW_OUTPUT: "True"
+          command: |
+            tox -p $TOX_NUM_CORES -e py36,py37,py38,coverage,mypy,format,lint,safety
+      - save_cache:
+          key: deps9-{{ .Branch }}-{{ checksum "requirements.txt" }}
+          paths:
+            - "/home/pyenv/.tox"
+            - "/usr/local/bin"
+            - "/usr/local/lib/python3.6/site-packages"
+            - "/usr/local/lib/python3.7/site-packages"
+            - "/usr/local/lib/python3.8/site-packages"
+      - store_test_results:
+          path: junit
+
+workflows:
+  version: 2
+  test:
+    jobs:
+      - test-cpython
