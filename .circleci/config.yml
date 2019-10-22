@@ -7,7 +7,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: deps-{{ .Branch }}-{{ checksum "requirements.txt" }}
+          key: deps-v1-{{ .Branch }}-{{ checksum "requirements.txt" }}
       - run:
           name: Install tox
           shell: /bin/bash -leo pipefail
@@ -22,7 +22,7 @@ jobs:
           command: |
             tox -p $TOX_NUM_CORES -e py36,py37,py38,coverage,mypy,format,lint,safety
       - save_cache:
-          key: deps9-{{ .Branch }}-{{ checksum "requirements.txt" }}
+          key: deps-v1-{{ .Branch }}-{{ checksum "requirements.txt" }}
           paths:
             - "/home/pyenv/.tox"
             - "/usr/local/bin"
