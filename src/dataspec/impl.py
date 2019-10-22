@@ -1006,6 +1006,17 @@ if sys.version_info >= (3, 7):
                 value=s,
             )
 
+    @register_str_format("iso-time", conformer=time.fromisoformat)
+    def _str_is_iso_time(s: str) -> Iterator[ErrorDetails]:
+        try:
+            time.fromisoformat(s)
+        except ValueError:
+            yield ErrorDetails(
+                message=f"String does not contain ISO formatted time",
+                pred=_str_is_iso_time,
+                value=s,
+            )
+
 
 else:
 

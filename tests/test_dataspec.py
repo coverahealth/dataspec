@@ -1432,6 +1432,71 @@ class TestStringSpecValidation:
             assert not datetime_spec.is_valid(v)
             assert not conforming_datetime_spec.is_valid(v)
 
+    @pytest.mark.skipif(
+        sys.version_info <= (3, 7), reason="time.fromisoformat added in Python 3.7"
+    )
+    class TestISOTimeFormat:
+        @pytest.fixture
+        def conform(self):
+            return time.fromisoformat
+
+        @pytest.fixture
+        def conforming_time_spec(self) -> Spec:
+            return s.str(conform_format="iso-time")
+
+        @pytest.fixture
+        def time_spec(self) -> Spec:
+            return s.str(format_="iso-time")
+
+        @pytest.mark.parametrize(
+            "v",
+            [
+                "18",
+                "18-00:00",
+                "18.335",
+                "18.335-00:00",
+                "18:03",
+                "18:03-00:00",
+                "18:03.335",
+                "18:03.335-00:00",
+                "18:03:50",
+                "18:03:50-00:00",
+                "18:03:50.617",
+                "18:03:50.617-00:00",
+                "18:03:50.617332",
+                "18:03:50.617332-00:00",
+            ],
+        )
+        def test_is_time_str(
+            self, time_spec: Spec, conforming_time_spec: Spec, conform, v
+        ):
+            assert time_spec.is_valid(v)
+            assert conforming_time_spec.is_valid(v)
+            assert conform(v) == conforming_time_spec.conform(v)
+
+        @pytest.mark.parametrize(
+            "v",
+            [
+                None,
+                25,
+                3.14,
+                [],
+                set(),
+                "abcdef",
+                "abcdefg",
+                "100017",
+                "10017-383",
+                "1945-9-2",
+                "430-10-02",
+                "2019-10-12",
+                "1945-09-02",
+                "1066-10-14",
+            ],
+        )
+        def test_is_not_time_str(self, time_spec: Spec, conforming_time_spec: Spec, v):
+            assert not time_spec.is_valid(v)
+            assert not conforming_time_spec.is_valid(v)
+
     class TestUUIDFormat:
         @pytest.fixture
         def conforming_uuid_spec(self) -> Spec:

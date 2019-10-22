@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Add an exact length validator to the string spec factory (#2)
 - Add conforming string formats (#3)
+- Add ISO time string format (#4)
 
 ## [0.1.0] - 2019-10-20
 ### Added
