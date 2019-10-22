@@ -1332,12 +1332,29 @@ class TestStringSpecValidation:
 
     class TestISODateFormat:
         @pytest.fixture
+        def conform(self):
+            if sys.version_info >= (3, 7):
+                return date.fromisoformat
+            else:
+                from dataspec.impl import _str_to_iso_date
+
+                return _str_to_iso_date
+
+        @pytest.fixture
+        def conforming_date_spec(self) -> Spec:
+            return s.str(conform_format="iso-date")
+
+        @pytest.fixture
         def date_spec(self) -> Spec:
             return s.str(format_="iso-date")
 
         @pytest.mark.parametrize("v", ["2019-10-12", "1945-09-02", "1066-10-14"])
-        def test_is_date_str(self, date_spec: Spec, v):
+        def test_is_date_str(
+            self, date_spec: Spec, conforming_date_spec: Spec, conform, v
+        ):
             assert date_spec.is_valid(v)
+            assert conforming_date_spec.is_valid(v)
+            assert conform(v) == conforming_date_spec.conform(v)
 
         @pytest.mark.parametrize(
             "v",
@@ -1355,13 +1372,22 @@ class TestStringSpecValidation:
                 "430-10-02",
             ],
         )
-        def test_is_not_date_str(self, date_spec: Spec, v):
+        def test_is_not_date_str(self, date_spec: Spec, conforming_date_spec: Spec, v):
             assert not date_spec.is_valid(v)
+            assert not conforming_date_spec.is_valid(v)
 
     @pytest.mark.skipif(
         sys.version_info <= (3, 7), reason="datetime.fromisoformat added in Python 3.7"
     )
     class TestISODatetimeFormat:
+        @pytest.fixture
+        def conform(self):
+            return datetime.fromisoformat
+
+        @pytest.fixture
+        def conforming_datetime_spec(self) -> Spec:
+            return s.str(conform_format="iso-datetime")
+
         @pytest.fixture
         def datetime_spec(self) -> Spec:
             return s.str(format_="iso-datetime")
@@ -1377,8 +1403,12 @@ class TestStringSpecValidation:
                 "1066-10-14",
             ],
         )
-        def test_is_datetime_str(self, datetime_spec: Spec, v):
+        def test_is_datetime_str(
+            self, datetime_spec: Spec, conforming_datetime_spec: Spec, conform, v
+        ):
             assert datetime_spec.is_valid(v)
+            assert conforming_datetime_spec.is_valid(v)
+            assert conform(v) == conforming_datetime_spec.conform(v)
 
         @pytest.mark.parametrize(
             "v",
@@ -1396,10 +1426,17 @@ class TestStringSpecValidation:
                 "430-10-02",
             ],
         )
-        def test_is_not_datetime_str(self, datetime_spec: Spec, v):
+        def test_is_not_datetime_str(
+            self, datetime_spec: Spec, conforming_datetime_spec: Spec, v
+        ):
             assert not datetime_spec.is_valid(v)
+            assert not conforming_datetime_spec.is_valid(v)
 
     class TestUUIDFormat:
+        @pytest.fixture
+        def conforming_uuid_spec(self) -> Spec:
+            return s.str(conform_format="uuid")
+
         @pytest.fixture
         def uuid_spec(self) -> Spec:
             return s.str(format_="uuid")
@@ -1413,18 +1450,29 @@ class TestStringSpecValidation:
                 "0613051083A5478BB65C6A8DC2104E2F",
             ],
         )
-        def test_is_uuid_str(self, uuid_spec: Spec, v):
+        def test_is_uuid_str(self, uuid_spec: Spec, conforming_uuid_spec: Spec, v):
             assert uuid_spec.is_valid(v)
+            assert conforming_uuid_spec.is_valid(v)
+            assert uuid.UUID(v) == conforming_uuid_spec.conform(v)
 
         @pytest.mark.parametrize(
             "v", [None, 25, 3.14, [], set(), "abcdef", "abcdefg", "100017", "10017-383"]
         )
-        def test_is_not_uuid_str(self, uuid_spec: Spec, v):
+        def test_is_not_uuid_str(self, uuid_spec: Spec, conforming_uuid_spec: Spec, v):
             assert not uuid_spec.is_valid(v)
+            assert not conforming_uuid_spec.is_valid(v)
 
-    def test_regex_and_format_agreement(self):
+    @pytest.mark.parametrize(
+        "opts",
+        [
+            {"regex": r"\d{5}(-\d{4})?", "format_": "uuid"},
+            {"regex": r"\d{5}(-\d{4})?", "conform_format": "uuid"},
+            {"conform_format": "uuid", "format_": "uuid"},
+        ],
+    )
+    def test_regex_and_format_agreement(self, opts):
         with pytest.raises(ValueError):
-            s.str(regex=r"\d{5}(-\d{4})?", format_="uuid")
+            s.str(**opts)
 
 
 class TestUUIDSpecValidation:

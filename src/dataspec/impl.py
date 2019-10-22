@@ -933,6 +933,46 @@ def _obj(
     )
 
 
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class _StrFormat:
+    validator: ValidatorSpec
+    conformer: Optional[Conformer] = None
+
+    @property
+    def conforming_validator(self) -> ValidatorSpec:
+        if self.conformer is not None:
+            return cast(ValidatorSpec, self.validator.with_conformer(self.conformer))
+        else:
+            return self.validator
+
+
+_STR_FORMATS: MutableMapping[str, _StrFormat] = {}
+_STR_FORMAT_LOCK = threading.Lock()
+
+
+def register_str_format_spec(
+    name: str, validate: ValidatorSpec, conformer: Optional[Conformer] = None
+) -> None:  # pragma: no cover
+    """Register a new String format, which will be checked by the ValidatorSpec
+    `validate`. A conformer can be supplied for the string format which will
+    be applied if desired, but may otherwise be ignored."""
+    with _STR_FORMAT_LOCK:
+        _STR_FORMATS[name] = _StrFormat(validate, conformer=conformer)
+
+
+def register_str_format(
+    tag: Tag, conformer: Optional[Conformer] = None
+) -> Callable[[Callable], ValidatorFn]:
+    """Decorator to register a Validator function as a string format."""
+
+    def create_str_format(f) -> ValidatorFn:
+        register_str_format_spec(tag, ValidatorSpec(tag, f), conformer=conformer)
+        return f
+
+    return create_str_format
+
+
+@register_str_format("uuid", conformer=uuid.UUID)
 def _str_is_uuid(s: str) -> Iterator[ErrorDetails]:
     try:
         uuid.UUID(s)
@@ -942,12 +982,9 @@ def _str_is_uuid(s: str) -> Iterator[ErrorDetails]:
         )
 
 
-_STR_FORMATS = {"uuid": ValidatorSpec("uuid-str", _str_is_uuid)}
-_STR_FORMAT_LOCK = threading.Lock()
-
-
 if sys.version_info >= (3, 7):
 
+    @register_str_format("iso-date", conformer=date.fromisoformat)
     def _str_is_iso_date(s: str) -> Iterator[ErrorDetails]:
         try:
             date.fromisoformat(s)
@@ -958,6 +995,7 @@ if sys.version_info >= (3, 7):
                 value=s,
             )
 
+    @register_str_format("iso-datetime", conformer=datetime.fromisoformat)
     def _str_is_iso_datetime(s: str) -> Iterator[ErrorDetails]:
         try:
             datetime.fromisoformat(s)
@@ -968,39 +1006,28 @@ if sys.version_info >= (3, 7):
                 value=s,
             )
 
-    with _STR_FORMAT_LOCK:
-        _STR_FORMATS["iso-date"] = ValidatorSpec("iso-date", _str_is_iso_date)
-        _STR_FORMATS["iso-datetime"] = ValidatorSpec(
-            "iso-datetime", _str_is_iso_datetime
-        )
 
 else:
 
     _ISO_DATE_REGEX = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
 
-    def _str_is_iso_date(s: str) -> Iterator[ErrorDetails]:
+    def _str_to_iso_date(s: str) -> Optional[date]:
         match = re.fullmatch(_ISO_DATE_REGEX, s)
         if match is not None:
             year, month, day = tuple(int(match.group(x)) for x in (1, 2, 3))
-            d: Optional[date] = date(year, month, day)
+            return date(year, month, day)
         else:
-            d = None
+            return None
 
+    @register_str_format("iso-date", conformer=_str_to_iso_date)
+    def _str_is_iso_date(s: str) -> Iterator[ErrorDetails]:
+        d = _str_to_iso_date(s)
         if d is None:
             yield ErrorDetails(
                 message=f"String does not contain ISO formatted date",
                 pred=_str_is_iso_date,
                 value=s,
             )
-
-    with _STR_FORMAT_LOCK:
-        _STR_FORMATS["iso-date"] = ValidatorSpec("iso-date", _str_is_iso_date)
-
-
-def register_str_format(name: str, validate: ValidatorSpec) -> None:  # pragma: no cover
-    """Register a new String format."""
-    with _STR_FORMAT_LOCK:
-        _STR_FORMATS[name] = validate
 
 
 def _str(  # noqa: MC0001  # pylint: disable=too-many-arguments
@@ -1010,6 +1037,7 @@ def _str(  # noqa: MC0001  # pylint: disable=too-many-arguments
     maxlength: Optional[int] = None,
     regex: Optional[str] = None,
     format_: Optional[str] = None,
+    conform_format: Optional[str] = None,
     conformer: Optional[Conformer] = None,
 ) -> Spec:
     """Return a spec that can validate strings against common rules."""
@@ -1076,7 +1104,7 @@ def _str(  # noqa: MC0001  # pylint: disable=too-many-arguments
                 "Cannot define a spec with minlength greater than maxlength"
             )
 
-    if regex is not None and format_ is None:
+    if regex is not None and format_ is None and conform_format is None:
         _pattern = re.compile(regex)
 
         @pred_to_validator(
@@ -1086,11 +1114,16 @@ def _str(  # noqa: MC0001  # pylint: disable=too-many-arguments
             return bool(_pattern.fullmatch(s))
 
         validators.append(str_matches_regex)
-    elif regex is None and format_ is not None:
+    elif regex is None and format_ is not None and conform_format is None:
         with _STR_FORMAT_LOCK:
-            validators.append(_STR_FORMATS[format_])
-    elif regex is not None and format_ is not None:
-        raise ValueError("Cannot define a spec with a regex and format")
+            validators.append(_STR_FORMATS[format_].validator)
+    elif regex is None and format_ is None and conform_format is not None:
+        with _STR_FORMAT_LOCK:
+            validators.append(_STR_FORMATS[conform_format].conforming_validator)
+    elif sum(int(v is not None) for v in [regex, format_, conform_format]) > 1:
+        raise ValueError(
+            "Cannot define a spec with more than one of: regex, format, conforming format"
+        )
 
     return ValidatorSpec.from_validators(tag or "str", *validators, conformer=conformer)
 

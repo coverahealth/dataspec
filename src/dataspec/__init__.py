@@ -9,6 +9,7 @@ from dataspec.impl import (
     ValidatorFn,
     pred_to_validator,
     register_str_format,
+    register_str_format_spec,
     s,
 )
 
@@ -23,5 +24,6 @@ __all__ = [
     "ValidationError",
     "pred_to_validator",
     "register_str_format",
+    "register_str_format_spec",
     "s",
 ]
