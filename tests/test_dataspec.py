@@ -245,7 +245,7 @@ class TestCollSpecValidation:
 class TestCollSpecConformation:
     @pytest.fixture
     def coll_spec(self) -> Spec:
-        return s([s.str(minlength=2, maxlength=2, conformer=str.upper)])
+        return s([s.str(length=2, conformer=str.upper)])
 
     def test_coll_conformation(self, coll_spec: Spec):
         conformed = coll_spec.conform(["CA", "ga", "IL", "ny"])
@@ -254,7 +254,7 @@ class TestCollSpecConformation:
 
     @pytest.fixture
     def set_spec(self) -> Spec:
-        return s([s.str(minlength=2, maxlength=2, conformer=str.upper), {"into": set}])
+        return s([s.str(length=2, conformer=str.upper), {"into": set}])
 
     def test_set_coll_conformation(self, set_spec: Spec):
         conformed = set_spec.conform(["CA", "ga", "IL", "ny", "ca"])
@@ -373,12 +373,7 @@ class TestDictSpecValidation:
     def test_error_details(self, v, path):
         try:
             s(
-                [
-                    {
-                        "name": s.is_str,
-                        "license_states": [s.str("state", minlength=2, maxlength=2)],
-                    }
-                ]
+                [{"name": s.is_str, "license_states": [s.str("state", length=2)]}]
             ).validate_ex(v)
         except ValidationError as e:
             err = e.errors[0]
@@ -1227,6 +1222,41 @@ class TestStringSpecValidation:
     @pytest.mark.parametrize("v", [25, None, 3.14, [], set()])
     def test_not_is_str(self, v):
         assert not s.is_str.is_valid(v)
+
+    class TestCountValidation:
+        @pytest.fixture
+        def count_spec(self) -> Spec:
+            return s.str(length=3)
+
+        @pytest.mark.parametrize("v", [-1, -100])
+        def test_min_count(self, v):
+            with pytest.raises(ValueError):
+                return s.str(length=v)
+
+        @pytest.mark.parametrize("v", [-0.5, 0.5, 2.71])
+        def test_int_count(self, v):
+            with pytest.raises(TypeError):
+                s.str(length=v)
+
+        @pytest.mark.parametrize("v", ["xxx", "xxy", "773", "833"])
+        def test_maxlength_spec(self, count_spec: Spec, v):
+            assert count_spec.is_valid(v)
+
+        @pytest.mark.parametrize("v", ["", "x", "xx", "xxxx", "xxxxx"])
+        def test_count_spec_failure(self, count_spec: Spec, v):
+            assert not count_spec.is_valid(v)
+
+        @pytest.mark.parametrize(
+            "opts",
+            [
+                {"length": 2, "minlength": 3},
+                {"length": 2, "maxlength": 3},
+                {"length": 2, "minlength": 1, "maxlength": 3},
+            ],
+        )
+        def test_count_and_minlength_or_maxlength_agreement(self, opts):
+            with pytest.raises(ValueError):
+                s.str(**opts)
 
     class TestMinlengthSpec:
         @pytest.fixture

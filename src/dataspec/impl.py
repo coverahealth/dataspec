@@ -388,7 +388,8 @@ class CollSpec(Spec):
                 raise ValueError("Collection maxlength spec cannot be less than 0")
 
             @pred_to_validator(
-                "Collection length exceeds max length {maxlength}", convert_value=len
+                f"Collection length {{value}} exceeds max length {maxlength}",
+                convert_value=len,
             )
             def coll_has_max_length(v) -> bool:
                 return len(v) > maxlength  # type: ignore
@@ -404,7 +405,7 @@ class CollSpec(Spec):
                 raise ValueError("Collection minlength spec cannot be less than 0")
 
             @pred_to_validator(
-                "Collection length does not meet minimum length {minlength}",
+                f"Collection length {{value}} does not meet minimum length {minlength}",
                 convert_value=len,
             )
             def coll_has_min_length(v) -> bool:
@@ -1004,6 +1005,7 @@ def register_str_format(name: str, validate: ValidatorSpec) -> None:  # pragma: 
 
 def _str(  # noqa: MC0001  # pylint: disable=too-many-arguments
     tag: Optional[Tag] = None,
+    length: Optional[int] = None,
     minlength: Optional[int] = None,
     maxlength: Optional[int] = None,
     regex: Optional[str] = None,
@@ -1017,6 +1019,26 @@ def _str(  # noqa: MC0001  # pylint: disable=too-many-arguments
         return isinstance(s, str)
 
     validators: List[Union[ValidatorFn, ValidatorSpec]] = [is_str]
+
+    if length is not None:
+
+        if not isinstance(length, int):
+            raise TypeError("String length spec must be an integer length")
+
+        if length < 0:
+            raise ValueError("String length spec cannot be less than 0")
+
+        if minlength is not None or maxlength is not None:
+            raise ValueError(
+                "Cannot define a string spec with exact length "
+                "and minlength or maxlength"
+            )
+
+        @pred_to_validator(f"String length does not equal {length}", convert_value=len)
+        def str_is_exactly_len(v) -> bool:
+            return len(v) != length
+
+        validators.append(str_is_exactly_len)
 
     if minlength is not None:
 
