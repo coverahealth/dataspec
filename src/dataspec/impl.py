@@ -1176,6 +1176,20 @@ def _uuid(
     )
 
 
+def _typecheck(
+    tag: Optional[Tag] = None, tp: Type = object, conformer: Optional[Conformer] = None
+) -> Spec:
+    """Return a spec that validates inputs are instances of tp."""
+
+    @pred_to_validator(f"Value '{{value}}' is not a {tp.__name__}", complement=True)
+    def is_instance_of_type(v: Any) -> bool:
+        return isinstance(v, tp)
+
+    return ValidatorSpec(
+        tag or f"is_{tp.__name__}", is_instance_of_type, conformer=conformer
+    )
+
+
 def _explain(spec: Spec, v) -> Optional[ValidationError]:  # pragma: no cover
     """Return a ValidationError instance containing all of the errors validating `v`, if
     there were any; return None otherwise."""
@@ -1259,6 +1273,8 @@ class SpecAPI:
                 return pred.with_conformer(conformer)
             else:
                 return pred
+        elif isinstance(pred, type):
+            return _typecheck(tag, pred, conformer=conformer)
         elif callable(pred):
             sig = inspect.signature(pred)
             if sig.return_annotation is Iterator[ErrorDetails]:

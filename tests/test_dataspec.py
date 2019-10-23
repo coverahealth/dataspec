@@ -1608,6 +1608,66 @@ class TestUUIDSpecValidation:
             assert INVALID is uuid_spec.conform(v)
 
 
+class TestTypeCheck:
+    @pytest.mark.parametrize(
+        "tp,vals",
+        [
+            (bool, [True, False]),
+            (bytes, [b"", b"a", b"bytes"]),
+            (dict, [{}, {"a": "b"}]),
+            (float, [-1.0, 0.0, 1.0]),
+            (int, [-1, 0, 1]),
+            (list, [[], ["a"], ["a", 1]]),
+            (set, [set(), {"a", "b", "c"}]),
+            (str, ["", "a", "a string", r"", r"a", r"astring"]),
+            (tuple, [(), ("a",), ("a", 1)]),
+        ],
+    )
+    def test_typecheck(self, tp, vals):
+        spec = s(tp)
+        assert all(spec.is_valid(v) for v in vals)
+
+    @pytest.fixture
+    def python_vals(self):
+        return [
+            True,
+            False,
+            b"",
+            b"a",
+            b"bytes",
+            {},
+            {"a": "b"},
+            -1.0,
+            0.0,
+            1.0,
+            -1,
+            0,
+            1,
+            [],
+            ["a"],
+            ["a", 1],
+            set(),
+            {"a", "b", "c"},
+            "",
+            "a",
+            "a string",
+            r"",
+            r"a",
+            r"astring",
+            (),
+            ("a",),
+            ("a", 1),
+        ]
+
+    @pytest.mark.parametrize(
+        "tp", [bool, bytes, dict, float, int, list, set, str, tuple]
+    )
+    def test_typecheck_failure(self, tp, python_vals):
+        spec = s(tp)
+        vals = filter(lambda v: not isinstance(v, tp), python_vals)
+        assert all(not spec.is_valid(v) for v in vals)
+
+
 class TestFunctionSpecs:
     def test_arg_specs(self):
         @s.fdef(argpreds=(s.is_num, s.is_num))
