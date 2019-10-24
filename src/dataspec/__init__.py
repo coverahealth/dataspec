@@ -1,4 +1,5 @@
-from dataspec.impl import (
+from dataspec.api import SpecAPI, s
+from dataspec.base import (
     INVALID,
     Conformer,
     ErrorDetails,
@@ -8,16 +9,15 @@ from dataspec.impl import (
     ValidationError,
     ValidatorFn,
     pred_to_validator,
-    register_str_format,
-    register_str_format_spec,
-    s,
 )
+from dataspec.factories import register_str_format, register_str_format_spec
 
 __all__ = [
     "INVALID",
     "Conformer",
     "ErrorDetails",
     "PredicateFn",
+    "SpecAPI",
     "Spec",
     "Tag",
     "ValidatorFn",
