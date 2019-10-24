@@ -652,6 +652,60 @@ class TestStringSpecValidation:
         def test_is_not_zipcode(self, zipcode_spec: Spec, v):
             assert not zipcode_spec.is_valid(v)
 
+    @pytest.mark.parametrize(
+        "opts",
+        [
+            {"regex": r"\d{5}(-\d{4})?", "format_": "uuid"},
+            {"regex": r"\d{5}(-\d{4})?", "conform_format": "uuid"},
+            {"conform_format": "uuid", "format_": "uuid"},
+        ],
+    )
+    def test_regex_and_format_agreement(self, opts):
+        with pytest.raises(ValueError):
+            s.str(**opts)
+
+
+class TestStringFormatValidation:
+    class TestEmailFormat:
+        @pytest.fixture
+        def email_spec(self) -> Spec:
+            return s.str(format_="email")
+
+        @pytest.mark.parametrize(
+            "v",
+            [
+                "chris@localhost",
+                "chris@gmail.com",
+                "chris+extra@gmail.com",
+                "chris.person@gmail.com",
+            ],
+        )
+        def test_is_email_str(self, email_spec: Spec, v):
+            assert email_spec.is_valid(v)
+
+        @pytest.mark.parametrize(
+            "v",
+            [
+                None,
+                25,
+                3.14,
+                [],
+                set(),
+                "abcdef",
+                "abcdefg",
+                "100017",
+                "10017-383",
+                "1945-9-2",
+                "430-10-02",
+                "chris",
+                "chris@",
+                "@gmail",
+                "@gmail.com",
+            ],
+        )
+        def test_is_not_email_str(self, email_spec: Spec, v):
+            assert not email_spec.is_valid(v)
+
     class TestISODateFormat:
         @pytest.fixture
         def conform(self):
@@ -848,18 +902,6 @@ class TestStringSpecValidation:
         def test_is_not_uuid_str(self, uuid_spec: Spec, conforming_uuid_spec: Spec, v):
             assert not uuid_spec.is_valid(v)
             assert not conforming_uuid_spec.is_valid(v)
-
-    @pytest.mark.parametrize(
-        "opts",
-        [
-            {"regex": r"\d{5}(-\d{4})?", "format_": "uuid"},
-            {"regex": r"\d{5}(-\d{4})?", "conform_format": "uuid"},
-            {"conform_format": "uuid", "format_": "uuid"},
-        ],
-    )
-    def test_regex_and_format_agreement(self, opts):
-        with pytest.raises(ValueError):
-            s.str(**opts)
 
 
 class TestUUIDSpecValidation:

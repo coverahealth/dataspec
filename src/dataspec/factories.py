@@ -3,6 +3,7 @@ import sys
 import threading
 import uuid
 from datetime import date, datetime, time
+from email.headerregistry import Address
 from typing import (
     Any,
     Callable,
@@ -372,6 +373,18 @@ def register_str_format(
         return f
 
     return create_str_format
+
+
+@register_str_format("email")
+def _str_is_email_address(s: str) -> Iterator[ErrorDetails]:
+    try:
+        Address(addr_spec=s)
+    except (TypeError, ValueError) as e:
+        yield ErrorDetails(
+            f"String does not contain a valid email address: {e}",
+            pred=_str_is_email_address,
+            value=s,
+        )
 
 
 @register_str_format("uuid", conformer=uuid.UUID)
