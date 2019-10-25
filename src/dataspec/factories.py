@@ -262,6 +262,81 @@ datetime_spec = _make_datetime_spec_factory(datetime)
 date_spec = _make_datetime_spec_factory(date)
 time_spec = _make_datetime_spec_factory(time)
 
+try:
+    from dateutil.parser import parse as parse_date, isoparse as parse_isodate
+except ImportError:
+    pass
+else:
+
+    def datetime_str_spec(  # pylint: disable=too-many-arguments
+        tag: Optional[Tag] = None,
+        iso_only: bool = False,
+        before: Optional[datetime] = None,
+        after: Optional[datetime] = None,
+        is_aware: Optional[bool] = None,
+        conformer: Optional[Conformer] = None,
+    ) -> Spec:
+        """
+        Return a Spec that validates strings containing date/time strings in
+        most common formats.
+
+        The resulting Spec will validate that the input value is a string which
+        contains a date/time using :py:func:`dateutil.parser.parse`. If the input
+        value can be determined to contain a valid :py:class:`datetime.datetime`
+        instance, it will be validated against a datetime Spec as by a standard
+        ``dataspec`` datetime Spec using the keyword options below.
+
+        :py:func:`dateutil.parser.parse` cannot produce :py:class:`datetime.time`
+        or :py:class:`datetime.date` instances directly, so this method will only
+        produce :py:func:`datetime.datetime` instances even if the input string
+        contains only a valid time or date, but not both.
+
+        If ``iso_only`` keyword argument is ``True``, restrict the set of allowed
+        input values to strings which contain ISO 8601 formatted strings. This is
+        accomplished using :py:func:`dateutil.parser.isoparse`, which does not
+        guarantee strict adherence to the ISO 8601 standard, but accepts a wider
+        range of valid ISO 8601 strings than Python 3.7+'s
+        :py:func:`datetime.datetime.fromisoformat` function.
+
+        :param tag: an optional tag for the resulting spec
+        :param iso_only: if True, restrict the set of allowed date strings to those
+            formatted as ISO 8601 datetime strings; default is False
+        :param before: if specified, a datetime that specifies the latest instant
+            this Spec will validate
+        :param after: if specified, a datetime that specifies the earliest instant
+            this Spec will validate
+        :param bool is_aware: if specified, indicate whether the Spec will validate
+            either aware or naive :py:class:`datetime.datetime` instances.
+        :param conformer: an optional conformer for the value; if one is not provided
+            :py:func:`dateutil.parser.parse` will be used
+        :return: a Spec which validates strings containing date/time strings
+        """
+
+        tag = tag or "datetime_str"
+
+        @pred_to_validator(f"Value '{{value}}' is not type 'str'", complement=True)
+        def is_str(x: Any) -> bool:
+            return isinstance(x, str)
+
+        dt_spec = datetime_spec(before=before, after=after, is_aware=is_aware)
+        parse_date_str = parse_isodate if iso_only else parse_date
+
+        def str_contains_datetime(s: str) -> Iterator[ErrorDetails]:
+            try:
+                parsed_dt = parse_date_str(s)  # type: ignore
+            except (OverflowError, ValueError):
+                yield ErrorDetails(
+                    message=f"String '{s}' does not contain a datetime",
+                    pred=str_contains_datetime,
+                    value=s,
+                )
+            else:
+                yield from dt_spec.validate(parsed_dt)
+
+        return ValidatorSpec.from_validators(
+            tag, is_str, str_contains_datetime, conformer=conformer or parse_date
+        )
+
 
 def nilable_spec(
     *args: Union[Tag, SpecPredicate], conformer: Optional[Conformer] = None

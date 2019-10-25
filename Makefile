@@ -23,5 +23,5 @@ format:
 
 .PHONY: test
 test:
-	@rm .coverage*
-	@tox -e py36,py37,py38,format,mypy,lint -p 4
+	@rm -f .coverage*
+	@TOX_SKIP_ENV=coverage tox -p 4

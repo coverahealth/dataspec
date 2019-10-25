@@ -121,5 +121,13 @@ class SpecAPI:
     fdef = staticmethod(_fdef)
     opt = staticmethod(opt_key)
 
+    # Conditionally available spec factories
+    try:
+        from dataspec.factories import datetime_str_spec
+    except ImportError:
+        pass
+    else:
+        inst_str = staticmethod(datetime_str_spec)
+
 
 s = SpecAPI()

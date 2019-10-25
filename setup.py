@@ -22,7 +22,7 @@ VERSION = None
 
 REQUIRED = ["attrs"]
 
-EXTRAS = {}
+EXTRAS = {"dates": ["python-dateutil"]}
 
 # Copied from the excellent https://github.com/kennethreitz/setup.py
 

@@ -7,6 +7,11 @@ import pytest
 
 from dataspec import INVALID, Spec, s
 
+try:
+    from dateutil.parser import parse as parse_date
+except ImportError:
+    parse_date = None
+
 
 class TestAllSpecValidation:
     @pytest.fixture
@@ -369,7 +374,7 @@ class TestDateSpecValidation:
             assert not after_spec.is_valid(v)
 
     class TestIsAwareSpec:
-        def test_aware_spec(self) -> Spec:
+        def test_aware_spec(self):
             s.date(is_aware=False)
 
             with pytest.raises(TypeError):
@@ -464,6 +469,110 @@ class TestTimeSpecValidation:
 
         def test_aware_spec_failure(self, aware_spec):
             assert not aware_spec.is_valid(time())
+
+
+@pytest.mark.skipif(parse_date is None, reason="python-dateutil must be installed")
+class TestInstStringSpecValidation:
+    ISO_DATETIMES = [
+        ("2003-09-25T10:49:41", datetime(2003, 9, 25, 10, 49, 41)),
+        ("2003-09-25T10:49", datetime(2003, 9, 25, 10, 49)),
+        ("2003-09-25T10", datetime(2003, 9, 25, 10)),
+        ("2003-09-25", datetime(2003, 9, 25)),
+        ("20030925T104941", datetime(2003, 9, 25, 10, 49, 41)),
+        ("20030925T1049", datetime(2003, 9, 25, 10, 49, 0)),
+        ("20030925T10", datetime(2003, 9, 25, 10)),
+        ("20030925", datetime(2003, 9, 25)),
+        ("2003-09-25 10:49:41,502", datetime(2003, 9, 25, 10, 49, 41, 502000)),
+        ("19760704", datetime(1976, 7, 4)),
+        ("0099-01-01T00:00:00", datetime(99, 1, 1, 0, 0)),
+        ("0031-01-01T00:00:00", datetime(31, 1, 1, 0, 0)),
+        ("20080227T21:26:01.123456789", datetime(2008, 2, 27, 21, 26, 1, 123456)),
+        ("0003-03-04", datetime(3, 3, 4)),
+        ("950404 122212", datetime(1995, 4, 4, 12, 22, 12)),
+    ]
+    NON_ISO_DATETIMES = [
+        ("Thu Sep 25 10:36:28 2003", datetime(2003, 9, 25, 10, 36, 28)),
+        ("Thu Sep 25 2003", datetime(2003, 9, 25)),
+        ("199709020908", datetime(1997, 9, 2, 9, 8)),
+        ("19970902090807", datetime(1997, 9, 2, 9, 8, 7)),
+        ("09-25-2003", datetime(2003, 9, 25)),
+        ("25-09-2003", datetime(2003, 9, 25)),
+        ("10-09-2003", datetime(2003, 10, 9)),
+        ("10-09-03", datetime(2003, 10, 9)),
+        ("2003.09.25", datetime(2003, 9, 25)),
+        ("09.25.2003", datetime(2003, 9, 25)),
+        ("25.09.2003", datetime(2003, 9, 25)),
+        ("10.09.2003", datetime(2003, 10, 9)),
+        ("10.09.03", datetime(2003, 10, 9)),
+        ("2003/09/25", datetime(2003, 9, 25)),
+        ("09/25/2003", datetime(2003, 9, 25)),
+        ("25/09/2003", datetime(2003, 9, 25)),
+        ("10/09/2003", datetime(2003, 10, 9)),
+        ("10/09/03", datetime(2003, 10, 9)),
+        ("2003 09 25", datetime(2003, 9, 25)),
+        ("09 25 2003", datetime(2003, 9, 25)),
+        ("25 09 2003", datetime(2003, 9, 25)),
+        ("10 09 2003", datetime(2003, 10, 9)),
+        ("10 09 03", datetime(2003, 10, 9)),
+        ("25 09 03", datetime(2003, 9, 25)),
+        ("03 25 Sep", datetime(2003, 9, 25)),
+        ("25 03 Sep", datetime(2025, 9, 3)),
+        ("  July   4 ,  1976   12:01:02   am  ", datetime(1976, 7, 4, 0, 1, 2)),
+        ("Wed, July 10, '96", datetime(1996, 7, 10, 0, 0)),
+        ("1996.July.10 AD 12:08 PM", datetime(1996, 7, 10, 12, 8)),
+        ("July 4, 1976", datetime(1976, 7, 4)),
+        ("7 4 1976", datetime(1976, 7, 4)),
+        ("4 jul 1976", datetime(1976, 7, 4)),
+        ("4 Jul 1976", datetime(1976, 7, 4)),
+        ("7-4-76", datetime(1976, 7, 4)),
+        ("0:01:02 on July 4, 1976", datetime(1976, 7, 4, 0, 1, 2)),
+        ("July 4, 1976 12:01:02 am", datetime(1976, 7, 4, 0, 1, 2)),
+        ("Mon Jan  2 04:24:27 1995", datetime(1995, 1, 2, 4, 24, 27)),
+        ("04.04.95 00:22", datetime(1995, 4, 4, 0, 22)),
+        ("Jan 1 1999 11:23:34.578", datetime(1999, 1, 1, 11, 23, 34, 578000)),
+        ("3rd of May 2001", datetime(2001, 5, 3)),
+        ("5th of March 2001", datetime(2001, 3, 5)),
+        ("1st of May 2003", datetime(2003, 5, 1)),
+        ("13NOV2017", datetime(2017, 11, 13)),
+        ("December.0031.30", datetime(31, 12, 30)),
+    ]
+    ALL_DATETIMES = ISO_DATETIMES + NON_ISO_DATETIMES
+
+    @pytest.fixture
+    def inst_str_spec(self) -> Spec:
+        return s.inst_str()
+
+    @pytest.mark.parametrize("date_str,datetime_obj", ALL_DATETIMES)
+    def test_inst_str_validation(self, inst_str_spec: Spec, date_str, datetime_obj):
+        assert inst_str_spec.is_valid(date_str)
+        assert datetime_obj == inst_str_spec.conform(date_str)
+
+    @pytest.mark.parametrize(
+        "v", ["", "abcde", "Tue September 32 2019", 5, 3.14, None, {}, set(), []]
+    )
+    def test_inst_str_validation_failure(self, inst_str_spec: Spec, v):
+        assert not inst_str_spec.is_valid(v)
+        assert INVALID is inst_str_spec.conform(v)
+
+    @pytest.fixture
+    def iso_inst_str_spec(self) -> Spec:
+        return s.inst_str(iso_only=True)
+
+    @pytest.mark.parametrize("date_str,datetime_obj", ISO_DATETIMES)
+    def test_iso_inst_str_validation(
+        self, iso_inst_str_spec: Spec, date_str, datetime_obj
+    ):
+        assert iso_inst_str_spec.is_valid(date_str)
+        assert datetime_obj == iso_inst_str_spec.conform(date_str)
+
+    @pytest.mark.parametrize(
+        "v",
+        ["", "abcde", "Tue September 32 2019", 5, 3.14, None, {}, set(), []]
+        + list(map(lambda v: v[0], NON_ISO_DATETIMES)),
+    )
+    def test_iso_inst_str_validation_failure(self, iso_inst_str_spec: Spec, v):
+        assert not iso_inst_str_spec.is_valid(v)
+        assert INVALID is iso_inst_str_spec.conform(v)
 
 
 def test_nilable():
@@ -1059,7 +1168,7 @@ class TestUUIDSpecValidation:
             return s.uuid(versions={1, 4})
 
         @pytest.mark.parametrize("versions", [{1, 3, 4, 8}, {1, -1}, {"1", "3", "5"}])
-        def test_invalid_uuid_version_spec(self, versions) -> Spec:
+        def test_invalid_uuid_version_spec(self, versions):
             with pytest.raises(ValueError):
                 s.uuid(versions=versions)
 
