@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allow type-checking specs to be created by passing a type directly to `s` (#12)
 - Add email address string format (#6)
 
+### Fixed
+- Guard against `inspect.signature` failures with Python builtins (#18)
+
 ## [0.1.0] - 2019-10-20
 ### Added
 - Initial commit

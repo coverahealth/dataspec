@@ -679,8 +679,13 @@ def make_spec(  # pylint: disable=inconsistent-return-statements
     elif isinstance(pred, type):
         return type_spec(tag, pred, conformer=conformer)
     elif callable(pred):
-        sig = inspect.signature(pred)
-        if sig.return_annotation is Iterator[ErrorDetails]:
+        try:
+            sig: Optional[inspect.Signature] = inspect.signature(pred)
+        except (TypeError, ValueError):
+            # Some builtins may not be inspectable
+            sig = None
+
+        if sig is not None and sig.return_annotation is Iterator[ErrorDetails]:
             return ValidatorSpec(
                 tag or pred.__name__, cast(ValidatorFn, pred), conformer=conformer
             )

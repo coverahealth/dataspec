@@ -34,6 +34,9 @@ class TestSpecConstructor:
 
         assert isinstance(s(is_valid), PredicateSpec)
 
+    def test_no_signature_for_builtins(self):
+        s.all(s.str(), str.istitle)
+
 
 class TestFunctionSpecs:
     def test_arg_specs(self):
