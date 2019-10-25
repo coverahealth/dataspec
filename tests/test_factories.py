@@ -904,6 +904,132 @@ class TestStringFormatValidation:
             assert not conforming_uuid_spec.is_valid(v)
 
 
+class TestURLSpecValidation:
+    @pytest.mark.parametrize(
+        "spec_kwargs",
+        [
+            {},
+            {"host": "coverahealth.com"},
+            {
+                "hostname": "coverahealth.com",
+                "hostname_regex": r"(api\.)?coverahealth.com",
+            },
+            {"port_regex": r"80|443"},
+        ],
+    )
+    def test_invalid_url_specs(self, spec_kwargs):
+        with pytest.raises(ValueError):
+            s.url(**spec_kwargs)
+
+    @pytest.mark.parametrize(
+        "spec_kwargs", [{"hostname_regex": b"coverahealth.com"}, {"port_in": [80, 443]}]
+    )
+    def test_invalid_url_spec_argument_types(self, spec_kwargs):
+        with pytest.raises(TypeError):
+            s.url(**spec_kwargs)
+
+    @pytest.mark.parametrize(
+        "v", [None, 25, 3.14, {}, [], set(), (), "", "//[coverahealth.com"]
+    )
+    def test_invalid_url(self, v):
+        assert not s.url(hostname_regex=r".*").is_valid(v)
+
+    @pytest.fixture
+    def urlstr(self) -> str:
+        return (
+            "https://jdoe:securepass@api.coverahealth.com:80/v1/patients"
+            "?last-name=Smith&last-name=Doe&birth-year=1985#user-profile"
+        )
+
+    def test_valid_query_str(self, urlstr):
+        assert s.url(
+            query={
+                "last-name": [s.all(s.str(), str.istitle)],
+                "birth-year": [s.str(regex=r"\d{4}")],
+            }
+        ).is_valid(urlstr)
+
+    def test_invalid_query_str(self, urlstr):
+        assert not s.url(
+            query={
+                "last-name": [s.str(), {"count": 1}],
+                "birth-year": [s.str(regex=r"\d{4}")],
+            }
+        ).is_valid(urlstr)
+
+    @pytest.mark.parametrize(
+        "spec_kwargs",
+        [
+            {"scheme": "https"},
+            {"scheme_in": {"https", "http"}},
+            {"scheme_regex": r"https?"},
+            {"netloc": "jdoe:securepass@api.coverahealth.com:80"},
+            {
+                "netloc_in": {
+                    "jdoe:securepass@api.coverahealth.com:80",
+                    "jdoe:securepass@api.coverahealth.com:443",
+                }
+            },
+            {"netloc_regex": r"jdoe:securepass@api\.coverahealth\.com:(80|443)"},
+            {"path": "/v1/patients"},
+            {"path_in": {"/v1/patients", "/v2/patients"}},
+            {"path_regex": r"\/(v1|v2)\/patients"},
+            {"fragment": "user-profile"},
+            {"fragment_in": {"user-profile", "user-addresses"}},
+            {"fragment_regex": r"user\-(profile|addresses)"},
+            {"username": "jdoe"},
+            {"username_in": {"jdoe", "doej"}},
+            {"username_regex": r"jdoe"},
+            {"password": "securepass"},
+            {"password_in": {"securepass", "insecurepass"}},
+            {"password_regex": r"(in)?securepass"},
+            {"hostname": "api.coverahealth.com"},
+            {"hostname_in": {"coverahealth.com", "api.coverahealth.com"}},
+            {"hostname_regex": r"(api\.)?coverahealth\.com"},
+            {"port": 80},
+            {"port_in": {80, 443}},
+        ],
+    )
+    def test_is_url_str(self, urlstr: str, spec_kwargs):
+        assert s.url(**spec_kwargs).is_valid(urlstr)
+
+    @pytest.mark.parametrize(
+        "spec_kwargs",
+        [
+            {"scheme": "http"},
+            {"scheme_in": {"http", "ftp"}},
+            {"scheme_regex": r"(ht|f)tp"},
+            {"netloc": "carl:insecurepass@api.coverahealth.com:80"},
+            {
+                "netloc_in": {
+                    "carl:insecurepass@api.coverahealth.com:80",
+                    "carl:insecurepass@api.coverahealth.com:443",
+                }
+            },
+            {"netloc_regex": r"carl:insecurepass@api\.coverahealth\.com:(80|443)"},
+            {"path": "/v2/patients"},
+            {"path_in": {"/v2/patients", "/v3/patients"}},
+            {"path_regex": r"\/(v2|v3)\/patients"},
+            {"fragment": "user-addresses"},
+            {"fragment_in": {"user-phone-numbers", "user-addresses"}},
+            {"fragment_regex": r"user\-(phone\-numbers|addresses)"},
+            {"username": "carl"},
+            {"username_in": {"carl", "vic"}},
+            {"username_regex": r"(carl|vic)"},
+            {"password": "insecurepass"},
+            {"password_in": {"rlysecurepass", "insecurepass"}},
+            {"password_regex": r"(rly|in)securepass"},
+            {"hostname": "coverahealth.com"},
+            {"hostname_in": {"coverahealth.com", "data.coverahealth.com"}},
+            {"hostname_regex": r"(data\.)?coverahealth\.com"},
+            {"port": 21},
+            {"port_in": {21, 443}},
+        ],
+    )
+    def test_is_not_url_str(self, urlstr: str, spec_kwargs):
+        assert not s.url(**spec_kwargs).is_valid(urlstr)
+
+
 class TestUUIDSpecValidation:
     @pytest.mark.parametrize(
         "v",

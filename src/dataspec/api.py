@@ -23,6 +23,7 @@ from dataspec.factories import (
     opt_key,
     str_spec,
     time_spec,
+    url_str_spec,
     uuid_spec,
 )
 
@@ -97,6 +98,7 @@ class SpecAPI:
     obj = staticmethod(obj_spec)
     str = staticmethod(str_spec)
     time = staticmethod(time_spec)
+    url = staticmethod(url_str_spec)
     uuid = staticmethod(uuid_spec)
 
     # Builtin pre-baked specs

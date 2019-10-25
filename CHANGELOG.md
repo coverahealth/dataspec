@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add ISO time string format (#4)
 - Allow type-checking specs to be created by passing a type directly to `s` (#12)
 - Add email address string format (#6)
+- Add URL string format factory `s.url` (#16)
 
 ### Fixed
 - Guard against `inspect.signature` failures with Python builtins (#18)
