@@ -52,40 +52,84 @@ def _tag_maybe(
 
 
 def any_spec(*preds: SpecPredicate, conformer: Optional[Conformer] = None) -> Spec:
-    """Return a Spec which may be satisfied if the input value satisfies at least one
-    input Spec."""
+    """
+    Return a Spec which validates input values against any one of an arbitrary
+    number of input Specs.
+
+    The returned Spec validates input values against the input Specs in the order
+    they are passed into this function.
+
+    If the returned Spec fails to validate the input value, the
+    :py:meth:`dataspec.base.Spec.validate` method will emit a stream of
+    :py:class:`dataspec.base.ErrorDetails` from all of failing constituent Specs.
+    If any of the constituent Specs successfully validates the input value, then
+    no :py:class:`dataspec.base.ErrorDetails` will be emitted by the
+    :py:meth:`dataspec.base.Spec.validate` method.
+
+    :param tag: an optional tag for the resulting spec
+    :param preds: one or more Specs or values which can be converted into a Spec
+    :param conformer: an optional conformer for the value
+    :return: a Spec
+    """
     tag, preds = _tag_maybe(*preds)  # pylint: disable=no-value-for-parameter
     specs = [make_spec(pred) for pred in preds]
 
-    def _any_pred(e) -> bool:
+    def _any_valid(e) -> Iterator[ErrorDetails]:
+        errors = []
         for spec in specs:
-            if spec.is_valid(e):
-                return True
+            spec_errors = [error for error in spec.validate(e)]
+            if spec_errors:
+                errors.extend(spec_errors)
+            else:
+                return
 
-        return False
+        yield from errors
 
-    return PredicateSpec(tag or "any", pred=_any_pred, conformer=conformer)
+    return ValidatorSpec(tag or "any", _any_valid, conformer=conformer)
 
 
 def all_spec(*preds: SpecPredicate, conformer: Optional[Conformer] = None) -> Spec:
-    """Return a Spec which requires all of the input Specs to be satisfied to validate
-    input data."""
+    """
+    Return a Spec which validates input values against all of the input Specs or
+    spec predicates.
+
+    For each Spec for which the input value is successfully validated, the value is
+    successively passed to the Spec's :py:meth:`dataspec.base.Spec.conform_valid`
+    method.
+
+    The returned Spec's :py:meth:`dataspec.base.Spec.validate` method will emit
+    a stream of :py:class:`dataspec.base.ErrorDetails` from the first failing
+    constituent Spec. :py:class:`dataspec.base.ErrorDetails` emitted from Specs
+    after a failing Spec will not be emitted, because the failing Spec's
+    :py:meth:`dataspec.base.Spec.conform` would not successfully conform the value.
+
+    The returned Spec's :py:meth:`dataspec.base.Spec.conform` method is the composition
+    of all of the input Spec's ``conform`` methods.
+
+    :param tag: an optional tag for the resulting spec
+    :param preds: one or more Specs or values which can be converted into a Spec
+    :param conformer: an optional conformer which will be applied to the final
+        conformed value produced by the input Specs conformers
+    :return: a Spec
+    """
     tag, preds = _tag_maybe(*preds)  # pylint: disable=no-value-for-parameter
     specs = [make_spec(pred) for pred in preds]
 
-    def _all_preds(e) -> bool:
+    def _all_valid(e) -> Iterator[ErrorDetails]:
         """Validate e against successive conformations to spec in specs."""
 
         for spec in specs:
-            if not spec.is_valid(e):
-                return False
+            errors = []
+            for error in spec.validate(e):
+                errors.append(error)
+            if errors:
+                yield from errors
+                return
             e = spec.conform_valid(e)
 
-        return True
-
-    return PredicateSpec(
+    return ValidatorSpec(
         tag or "all",
-        pred=_all_preds,
+        _all_valid,
         conformer=compose_conformers(*specs, conform_final=conformer),
     )
 
