@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add email address string format (#6)
 - Add URL string format factory `s.url` (#16)
 - Add Python `dateutil` support for parsing dates (#5)
+- Add Python `phonenumbers` support for parsing international telephone numbes (#10)
 
 ### Changed
 - `s.all` and `s.any` create `ValidatorSpec`s now rather than `PredicateSpec`s

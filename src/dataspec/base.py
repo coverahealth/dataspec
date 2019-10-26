@@ -33,14 +33,14 @@ T = TypeVar("T")
 V = TypeVar("V")
 
 
-class _Invalid:
+class Invalid:
     pass
 
 
-INVALID = _Invalid()
+INVALID = Invalid()
 
 
-Conformer = Callable[[T], Union[V, _Invalid]]
+Conformer = Callable[[T], Union[V, Invalid]]
 PredicateFn = Callable[[Any], bool]
 ValidatorFn = Callable[[Any], Iterable["ErrorDetails"]]
 Tag = str

@@ -27,6 +27,17 @@ from dataspec.factories import (
     uuid_spec,
 )
 
+try:
+    from dataspec.factories import datetime_str_spec
+except ImportError:
+    datetime_str_spec = None  # type: ignore
+
+
+try:
+    from dataspec.factories import phonenumber_spec
+except ImportError:
+    phonenumber_spec = None  # type: ignore
+
 
 def _explain(spec: Spec, v) -> Optional[ValidationError]:  # pragma: no cover
     """Return a ValidationError instance containing all of the errors validating `v`, if
@@ -122,12 +133,11 @@ class SpecAPI:
     opt = staticmethod(opt_key)
 
     # Conditionally available spec factories
-    try:
-        from dataspec.factories import datetime_str_spec
-    except ImportError:
-        pass
-    else:
+    if datetime_str_spec is not None:
         inst_str = staticmethod(datetime_str_spec)
+
+    if phonenumber_spec is not None:
+        phone = staticmethod(phonenumber_spec)
 
 
 s = SpecAPI()

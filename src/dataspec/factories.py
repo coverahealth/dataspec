@@ -4,6 +4,7 @@ import threading
 import uuid
 from datetime import date, datetime, time
 from email.headerregistry import Address
+from functools import partial
 from typing import (
     Any,
     Callable,
@@ -24,8 +25,10 @@ from urllib.parse import ParseResult, parse_qs, urlparse
 import attr
 
 from dataspec.base import (
+    INVALID,
     Conformer,
     ErrorDetails,
+    Invalid,
     ObjectSpec,
     OptionalKey,
     PredicateSpec,
@@ -454,6 +457,146 @@ def opt_key(k: T) -> OptionalKey:
     """Return `k` wrapped in a marker object indicating that the key is optional in
     associative specs."""
     return OptionalKey(k)
+
+
+try:  # noqa: MC0001
+    import phonenumbers
+except ImportError:
+    pass
+else:
+
+    def conform_phonenumber(
+        s: str, region: Optional[str] = None
+    ) -> Union[Invalid, str]:
+        """Return a string containing a telephone number in E.164 format or return
+        the special value :py:obj:``dataspec.base.INVALID`` if the input string does
+        not contain a telephone number."""
+        try:
+            p = phonenumbers.parse(s, region=region)
+        except phonenumbers.NumberParseException:
+            return INVALID
+        else:
+            return phonenumbers.format_number(p, phonenumbers.PhoneNumberFormat.E164)
+
+    def phonenumber_spec(
+        tag: Optional[Tag] = None,
+        region: Optional[str] = None,
+        is_possible: bool = True,
+        is_valid: bool = True,
+        conformer: Optional[Conformer] = conform_phonenumber,
+    ) -> Spec:
+        """
+        Return a Spec that validates strings containing telephone number in most
+        common formats.
+
+        The resulting Spec will validate that the input value is a string which
+        contains a telephone number using :py:func:`phonenumbers.parse`. If the input
+        value can be determined to contain a valid telephone number, it will be
+        validated against a Spec which validates properties specified by the keyword
+        arguments of this function.
+
+        If ``region`` is supplied, the region will be used as a hint for
+        :py:func:`phonenumbers.parse` and the region of the parsed telephone number
+        will be verified. Telephone numbers can be specified with their region as a
+        "+" prefix, which takes precedence over the ``region`` hint. The Spec will
+        reject parsed telephone numbers whose region differs from the specified region
+        in all cases.
+
+        If ``is_possible`` is True, the parsed telephone number will be validated
+        as a possible telephone number for the parsed region (which may be different
+        from the specified region).
+
+        If ``is_valid`` is True, the parsed telephone number will be validated as a
+        valid telephone number (as by :py:func:`phonenumbers.is_valid_number`).
+
+        By default, the Spec supplies a conformer which conforms telephone numbers to
+        the international E.164 format, which is globally unique.
+
+        :param tag: an optional tag for the resulting spec
+        :param region: an optional two-letter country code which, if provided, will
+            be checked against the parsed telephone number's region
+        :param is_possible: if True and the input number can be successfully parsed,
+            validate that the number is a possible number (it has the right number of
+            digits)
+        :param is_valid: if True and the input number can be successfully parsed,
+            validate that the number is a valid number (it is an an assigned exchange)
+        :param conformer: an optional conformer for the value; if one is not provided
+            a default conformer will be supplied which conforms the input telephone
+            number into E.164 format
+        :return: a Spec which validates strings containing telephone numbers
+        """
+
+        tag = tag or "phonenumber_str"
+
+        @pred_to_validator(f"Value '{{value}}' is not type 'str'", complement=True)
+        def is_str(x: Any) -> bool:
+            return isinstance(x, str)
+
+        validators = []
+
+        if region is not None:
+            region = region.upper()
+
+            if phonenumbers.country_code_for_region(region) == 0:
+                raise ValueError(f"Region '{region}' is not a valid region")
+
+            country_code = phonenumbers.country_code_for_region(region)
+
+            @pred_to_validator(
+                f"Parsed telephone number regions ({{value}}) does not "
+                f"match expected region {region}",
+                complement=True,
+                convert_value=lambda p: ", ".join(
+                    phonenumbers.region_codes_for_country_code(p.country_code)
+                ),
+            )
+            def validate_phonenumber_region(p: phonenumbers.PhoneNumber) -> bool:
+                return p.country_code == country_code
+
+            validators.append(validate_phonenumber_region)
+
+            if conformer is conform_phonenumber:
+                conformer = partial(conform_phonenumber, region=region)
+
+        if is_possible:
+
+            @pred_to_validator(
+                f"Parsed telephone number '{{value}}' is not possible", complement=True
+            )
+            def validate_phonenumber_is_possible(p: phonenumbers.PhoneNumber) -> bool:
+                return phonenumbers.is_possible_number(p)
+
+            validators.append(validate_phonenumber_is_possible)
+
+        if is_valid:
+
+            @pred_to_validator(
+                f"Parsed telephone number '{{value}}' is not valid", complement=True
+            )
+            def validate_phonenumber_is_valid(p: phonenumbers.PhoneNumber) -> bool:
+                return phonenumbers.is_valid_number(p)
+
+            validators.append(validate_phonenumber_is_valid)
+
+        def validate_phonenumber(p: phonenumbers.PhoneNumber) -> Iterator[ErrorDetails]:
+            for validate in validators:
+                yield from validate(p)
+
+        def str_contains_phonenumber(s: str) -> Iterator[ErrorDetails]:
+            try:
+                p = phonenumbers.parse(s, region=region)
+            except phonenumbers.NumberParseException:
+                yield ErrorDetails(
+                    message=f"String '{s}' does not contain a telephone number",
+                    pred=str_contains_phonenumber,
+                    value=s,
+                )
+            else:
+                yield from validate_phonenumber(p)
+
+        return ValidatorSpec.from_validators(
+            tag, is_str, str_contains_phonenumber, conformer=conformer
+        )
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)

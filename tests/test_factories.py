@@ -13,6 +13,12 @@ except ImportError:
     parse_date = None
 
 
+try:
+    import phonenumbers
+except ImportError:
+    phonenumbers = None
+
+
 class TestAllSpecValidation:
     @pytest.fixture
     def all_spec(self) -> Spec:
@@ -643,6 +649,65 @@ class TestNumSpecValidation:
 
         with pytest.raises(ValueError):
             s.num(min_=10, max_=8.6)
+
+
+@pytest.mark.skipif(phonenumbers is None, reason="phonenumbers must be installed")
+class TestPhoneNumberStringSpecValidation:
+    @pytest.mark.parametrize(
+        "region", ["US", "Us", "uS", "us", "GB", "Gb", "gB", "gb", "DE", "dE", "De"]
+    )
+    def test_valid_regions(self, region):
+        s.phone(region=region)
+
+    @pytest.mark.parametrize("region", ["USA", "usa", "america", "ZZ", "zz", "FU"])
+    def test_invalid_regions(self, region):
+        with pytest.raises(ValueError):
+            s.phone(region=region)
+
+    @pytest.fixture
+    def phone_spec(self) -> Spec:
+        return s.phone(region="US")
+
+    @pytest.mark.parametrize(
+        "v",
+        [
+            "9175555555",
+            "+19175555555",
+            "(917) 555-5555",
+            "917-555-5555",
+            "1-917-555-5555",
+            "917.555.5555",
+            "917 555 5555",
+        ],
+    )
+    def test_valid_phone_number(self, phone_spec: Spec, v):
+        assert phone_spec.is_valid(v)
+        assert "+19175555555" == phone_spec.conform(v)
+
+    @pytest.mark.parametrize(
+        "v",
+        [
+            None,
+            -50,
+            4.9,
+            4,
+            0,
+            3.14,
+            [],
+            set(),
+            "",
+            "917555555",
+            "+1917555555",
+            "(917) 555-555",
+            "917-555-555",
+            "1-917-555-555",
+            "917.555.555",
+            "917 555 555",
+        ],
+    )
+    def test_invalid_phone_number(self, phone_spec: Spec, v):
+        assert not phone_spec.is_valid(v)
+        assert INVALID is phone_spec.conform(v)
 
 
 class TestStringSpecValidation:
