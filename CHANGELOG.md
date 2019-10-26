@@ -18,9 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `s.all` and `s.any` create `ValidatorSpec`s now rather than `PredicateSpec`s
   which yield richer error details from constituent Specs
+- Add `bytes` exact length validation
 
 ### Fixed
 - Guard against `inspect.signature` failures with Python builtins (#18)
+- `s.date`, `s.inst`, and `s.time` spec factory `before` and `after` must now
+  agree (`before` must be strictly equal to or before `after`) (#25) 
+
 
 ## [0.1.0] - 2019-10-20
 ### Added

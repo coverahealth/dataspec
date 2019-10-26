@@ -142,7 +142,14 @@ def bool_spec(
     allowed_values: Optional[Set[bool]] = None,
     conformer: Optional[Conformer] = None,
 ) -> Spec:
-    """Return a Spec which returns True for boolean values."""
+    """
+    Return a Spec which will validate boolean values.
+
+    :param tag: an optional tag for the resulting spec
+    :param allowed_values: if specified, a set of allowed boolean values
+    :param conformer: an optional conformer for the value
+    :return: a Spec which validates boolean values
+    """
 
     assert allowed_values is None or all(isinstance(e, bool) for e in allowed_values)
 
@@ -170,17 +177,67 @@ def bool_spec(
 def bytes_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
     tag: Optional[Tag] = None,
     type_: Tuple[Union[Type[bytes], Type[bytearray]], ...] = (bytes, bytearray),
+    length: Optional[int] = None,
     minlength: Optional[int] = None,
     maxlength: Optional[int] = None,
     conformer: Optional[Conformer] = None,
 ) -> Spec:
-    """Return a spec that can validate bytes and bytearrays against common rules."""
+    """
+    Return a spec that can validate bytes and bytearrays against common rules.
+
+    If ``type_`` is specified, the resulting Spec will only validate the byte type
+    or types named by ``type_``, otherwise :py:class:`byte` and :py:class:`bytearray`
+    will be used.
+
+    If ``length`` is specified, the resulting Spec will validate that input bytes
+    measure exactly ``length`` bytes by by :py:func:`len`. If ``minlength`` is
+    specified, the resulting Spec will validate that input bytes measure at least
+    ``minlength`` bytes by by :py:func:`len`.  If ``maxlength`` is specified, the
+    resulting Spec will validate that input bytes measure not more than ``maxlength``
+    bytes by by :py:func:`len`. Only one of ``length``, ``minlength``, or ``maxlength``
+    can be specified. If more than one is specified a :py:exc:`ValueError` will be
+    raised. If any length value is specified less than 0 a :py:exc:`ValueError` will
+    be raised. If any length value is not an :py:class:`int` a :py:exc:`TypeError`
+    will be raised.
+
+    :param tag: an optional tag for the resulting spec
+    :param type_:  a single :py:class:`type` or tuple of :py:class:`type`s which
+        will be used to type check input values by the resulting Spec
+    :param length: if specified, the resulting Spec will validate that bytes are
+        exactly ``length`` bytes long by :py:func:`len`
+    :param minlength: if specified, the resulting Spec will validate that bytes are
+        not fewer than ``minlength`` bytes long by :py:func:`len`
+    :param maxlength: if specified, the resulting Spec will validate that bytes are
+        not longer than ``maxlength`` bytes long by :py:func:`len`
+    :param conformer: an optional conformer for the value
+    :return: a Spec which validates bytes and bytearrays
+    """
 
     @pred_to_validator(f"Value '{{value}}' is not a {type_}", complement=True)
     def is_bytes(s: Any) -> bool:
         return isinstance(s, type_)
 
     validators: List[Union[ValidatorFn, ValidatorSpec]] = [is_bytes]
+
+    if length is not None:
+
+        if not isinstance(length, int):
+            raise TypeError("Byte length spec must be an integer length")
+
+        if length < 0:
+            raise ValueError("Byte length spec cannot be less than 0")
+
+        if minlength is not None or maxlength is not None:
+            raise ValueError(
+                "Cannot define a byte spec with exact length "
+                "and minlength or maxlength"
+            )
+
+        @pred_to_validator(f"Bytes length does not equal {length}", convert_value=len)
+        def bytestr_is_exactly_len(v: Union[bytes, bytearray]) -> bool:
+            return len(v) != length
+
+        validators.append(bytestr_is_exactly_len)
 
     if minlength is not None:
 
@@ -193,7 +250,7 @@ def bytes_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
         @pred_to_validator(
             f"Bytes '{{value}}' does not meet minimum length {minlength}"
         )
-        def bytestr_has_min_length(s: str) -> bool:
+        def bytestr_has_min_length(s: Union[bytes, bytearray]) -> bool:
             return len(s) < minlength  # type: ignore
 
         validators.append(bytestr_has_min_length)
@@ -207,7 +264,7 @@ def bytes_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
             raise ValueError("Byte maxlength spec cannot be less than 0")
 
         @pred_to_validator(f"Bytes '{{value}}' exceeds maximum length {maxlength}")
-        def bytestr_has_max_length(s: str) -> bool:
+        def bytestr_has_max_length(s: Union[bytes, bytearray]) -> bool:
             return len(s) > maxlength  # type: ignore
 
         validators.append(bytestr_has_max_length)
@@ -226,7 +283,13 @@ def bytes_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
 def every_spec(
     tag: Optional[Tag] = None, conformer: Optional[Conformer] = None
 ) -> Spec:
-    """Return a Spec which returns True for every possible value."""
+    """
+    Return a Spec which validates every possible value.
+
+    :param tag: an optional tag for the resulting spec
+    :param conformer: an optional conformer for the value
+    :return: a Spec which validates any value
+    """
 
     def always_true(_) -> bool:
         return True
@@ -243,6 +306,38 @@ def _make_datetime_spec_factory(
     Yep.
     """
 
+    aware_docstring_blurb = (
+        """If ``is_aware`` is :py:obj:`True`, the resulting Spec will validate that input
+    values are timezone aware. If ``is_aware`` is :py:obj:`False`, the resulting Spec
+    will validate that inpute values are naive. If unspecified, the resulting Spec
+    will not consider whether the input value is naive or aware."""
+        if type_ is not date
+        else """If ``is_aware`` is specified, a :py:exc:`TypeError` will be raised as
+    :py:class:`datetime.date` values cannot be aware or naive."""
+    )
+
+    docstring = f"""
+    Return a Spec which validates :py:class:`datetime.{type_.__name__}` types with
+    common rules.
+
+    If ``before`` is specified, the resulting Spec will validate that input values
+    are before ``before`` by Python's ``<`` operator. If ``after`` is specified, the
+    resulting Spec will validate that input values are after ``after`` by Python's
+    ``>`` operator. If ``before`` and ``after`` are specified and ``after`` is before
+    ``before``, a :py:exc:`ValueError` will be raised.
+
+    {aware_docstring_blurb}
+
+    :param tag: an optional tag for the resulting spec
+    :param before: if specified, the input value must come before this date or time
+    :param after: if specified, the input value must come after this date or time
+    :param is_aware: if :py:obj:`True`, validate that input objects are timezone
+        aware; if :py:obj:`False`, validate that input objects are naive; if
+        :py:obj:`None`, do not consider whether the input value is naive or aware
+    :param conformer: an optional conformer for the value
+    :return: a Spec which validates :py:class:`datetime.{type_.__name__}` types
+    """
+
     def _datetime_spec_factory(
         tag: Optional[Tag] = None,
         before: Optional[type_] = None,  # type: ignore
@@ -250,8 +345,6 @@ def _make_datetime_spec_factory(
         is_aware: Optional[bool] = None,
         conformer: Optional[Conformer] = None,
     ) -> Spec:
-        """Return a Spec which validates datetime types with common rules."""
-
         @pred_to_validator(f"Value '{{value}}' is not {type_}", complement=True)
         def is_datetime_type(v) -> bool:
             return isinstance(v, type_)
@@ -273,6 +366,13 @@ def _make_datetime_spec_factory(
                 return after > dt
 
             validators.append(is_after)
+
+        if after is not None and before is not None:
+            if after < before:
+                raise ValueError(
+                    "Date spec 'after' criteria must be after"
+                    "'before' criteria if both specified"
+                )
 
         if is_aware is not None:
             if type_ is datetime:
@@ -302,6 +402,7 @@ def _make_datetime_spec_factory(
             tag or type_.__name__, *validators, conformer=conformer
         )
 
+    _datetime_spec_factory.__doc__ = docstring
     return _datetime_spec_factory
 
 
@@ -388,7 +489,16 @@ else:
 def nilable_spec(
     *args: Union[Tag, SpecPredicate], conformer: Optional[Conformer] = None
 ) -> Spec:
-    """Return a Spec which either satisfies a single Spec predicate or which is None."""
+    """
+    Return a Spec which will validate values either by the input Spec or allow
+    the value :py:obj:`None`.
+
+    :param tag: an optional tag for the resulting spec
+    :param pred: a Spec or value which can be converted into a Spec
+    :param conformer: an optional conformer for the value
+    :return: a Spec which validates either according to ``pred`` or the value
+        :py:obj:`None`
+    """
     tag, preds = _tag_maybe(*args)  # pylint: disable=no-value-for-parameter
     assert len(preds) == 1, "Only one predicate allowed"
     spec = make_spec(cast("SpecPredicate", preds[0]))
@@ -409,7 +519,29 @@ def num_spec(
     max_: Union[complex, float, int, None] = None,
     conformer: Optional[Conformer] = None,
 ) -> Spec:
-    """Return a spec that can validate numeric values against common rules."""
+    """
+    Return a Spec that can validate numeric values against common rules.
+
+    If ``type_`` is specified, the resulting Spec will only validate the numeric
+    type or types named by ``type_``, otherwise :py:class:`float` and :py:class:`int`
+    will be used.
+
+    If ``min_`` is specified, the resulting Spec will validate that input values are
+    at least ``min_`` using Python's ``<`` operator. If ``max_`` is specified, the
+    resulting Spec will validate that input values are not more than ``max_`` using
+    Python's ``<`` operator. If ``min_`` and ``max_`` are specified and ``max_`` is
+    less than ``min_``, a :py:exc:`ValueError` will be raised.
+
+    :param tag: an optional tag for the resulting spec
+    :param type_: a single :py:class:`type` or tuple of :py:class:`type`s which
+        will be used to type check input values by the resulting Spec
+    :param min_: if specified, the resulting Spec will validate that numeric values
+        are not less than ``min_`` (as by ``<``)
+    :param max_: if specified, the resulting Spec will validate that numeric values
+        are not less than ``max_`` (as by ``>``)
+    :param conformer: an optional conformer for the value
+    :return: a Spec which validates numeric values
+    """
 
     @pred_to_validator(f"Value '{{value}}' is not type {type_}", complement=True)
     def is_numeric_type(x: Any) -> bool:
@@ -729,7 +861,69 @@ def str_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
     conform_format: Optional[str] = None,
     conformer: Optional[Conformer] = None,
 ) -> Spec:
-    """Return a spec that can validate strings against common rules."""
+    """
+    Return a Spec that can validate strings against common rules.
+
+    String Specs always validate that the input value is a :py:class:`str` type.
+
+    If ``length`` is specified, the resulting Spec will validate that input strings
+    measure exactly ``length`` characters by by :py:func:`len`. If ``minlength`` is
+    specified, the resulting Spec will validate that input strings measure at least
+    ``minlength`` characters by by :py:func:`len`.  If ``maxlength`` is specified,
+    the resulting Spec will validate that input strings measure not more than
+    ``maxlength`` characters by by :py:func:`len`. Only one of ``length``,
+    ``minlength``, or ``maxlength`` can be specified. If more than one is specified a
+    :py:exc:`ValueError` will be raised. If any length value is specified less than 0
+    a :py:exc:`ValueError` will be raised. If any length value is not an
+    :py:class:`int` a :py:exc:`TypeError` will be raised.
+
+    If ``regex`` is specified, a Regex pattern will be created by :py:func:`re.compile`
+    and :py:func:`re.fullmatch` will be used to validate input strings. If ``format_``
+    is specified, the input string will be validated using the Spec registered to
+    validate for the string name of the format. If ``conform_format`` is specified,
+    the input string will be validated using the Spec registered to validate for the
+    string name of the format and the default conformer registered with the format
+    Spec will be set as the ``conformer`` for the resulting Spec. Only one of
+    ``regex``, ``format_``, and ``conform_format`` may be specified when creating a
+    string Spec; if more than one is specified, a :py:exc:`ValueError` will be
+    raised.
+
+    String format Specs may be registered using the function
+    :py:func:`dataspec.factories.register_str_format_spec`. Alternatively, a string
+    format validator function may be registered using the decorator
+    :py:func:`dataspec.factories.register_str_format`. String formats may include a
+    default conformer which will be applied for ``conform_format`` usages of the
+    format.
+
+    Several useful defaults are supplied as part of this library:
+
+     * `email` validates that a string contains a valid email address format (though
+       not necessarily that the username or hostname exists or that the email address
+       would be able to receive email)
+     * `iso-date` validates that a string contains a valid ISO 8601 date string
+     * `iso-datetime` (Python 3.7+) validates that a string contains a valid ISO 8601
+       date and time stamp
+     * `iso-time` (Python 3.7+) validates that a string contains a valid ISO 8601
+       time string
+     * `uuid` validates that a string contains a valid UUID
+
+    :param tag: an optional tag for the resulting spec
+    :param length: if specified, the resulting Spec will validate that strings are
+        exactly ``length`` characters long by :py:func:`len`
+    :param minlength: if specified, the resulting Spec will validate that strings are
+        not fewer than ``minlength`` characters long by :py:func:`len`
+    :param maxlength: if specified, the resulting Spec will validate that strings are
+        not longer than ``maxlength`` characters long by :py:func:`len`
+    :param regex: if specified, the resulting Spec will validate that strings match
+        the ``regex`` pattern using :py:func:`re.fullmatch`
+    :param format_: if specified, the resulting Spec will validate that strings match
+        the registered string format ``format``
+    :param conform_format: if specified, the resulting Spec will validate that strings
+        match the registered string format ``conform_format``; the resulting Spec will
+        automatically use the default conformer supplied with the string format
+    :param conformer: an optional conformer for the value
+    :return: a Spec which validates strings
+    """
 
     @pred_to_validator(f"Value '{{value}}' is not a string", complement=True)
     def is_str(s: Any) -> bool:
@@ -1040,7 +1234,22 @@ def uuid_spec(
     versions: Optional[Set[int]] = None,
     conformer: Optional[Conformer] = None,
 ) -> Spec:
-    """Return a spec that can validate UUIDs against common rules."""
+    """
+    Return a Spec that can validate UUIDs against common rules.
+
+    UUID Specs always validate that the input value is a :py:class:`uuid.UUID` type.
+
+    If ``versions`` is specified, the resulting Spec will validate that input UUIDs
+    are the RFC 4122 variant and that they are one of the specified integer versions
+    of RFC 4122 variant UUIDs. If ``versions`` specifies an invalid RFC 4122 variant
+    UUID version, a :py:exc:`ValueError` will be raised.
+
+    :param tag: an optional tag for the resulting spec
+    :param versions: an optional set of integers of 1, 3, 4, and 5 which the input
+        :py:class:`uuid.UUID` must match; otherwise, any version will pass the Spec
+    :param conformer: an optional conformer for the value
+    :return: a Spec which validates UUIDs
+    """
 
     @pred_to_validator(f"Value '{{value}}' is not a UUID", complement=True)
     def is_uuid(v: Any) -> bool:

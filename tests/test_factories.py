@@ -146,6 +146,41 @@ class TestBytesSpecValidation:
     def test_not_is_bytes(self, v):
         assert not s.is_bytes.is_valid(v)
 
+    class TestLengthValidation:
+        @pytest.fixture
+        def length_spec(self) -> Spec:
+            return s.bytes(length=3)
+
+        @pytest.mark.parametrize("v", [-1, -100])
+        def test_min_count(self, v):
+            with pytest.raises(ValueError):
+                return s.bytes(length=v)
+
+        @pytest.mark.parametrize("v", [-0.5, 0.5, 2.71])
+        def test_int_count(self, v):
+            with pytest.raises(TypeError):
+                s.bytes(length=v)
+
+        @pytest.mark.parametrize("v", [b"xxx", b"xxy", b"773", b"833"])
+        def test_length_spec(self, length_spec: Spec, v):
+            assert length_spec.is_valid(v)
+
+        @pytest.mark.parametrize("v", [b"", b"x", b"xx", b"xxxx", b"xxxxx"])
+        def test_length_spec_failure(self, length_spec: Spec, v):
+            assert not length_spec.is_valid(v)
+
+        @pytest.mark.parametrize(
+            "opts",
+            [
+                {"length": 2, "minlength": 3},
+                {"length": 2, "maxlength": 3},
+                {"length": 2, "minlength": 1, "maxlength": 3},
+            ],
+        )
+        def test_length_and_minlength_or_maxlength_agreement(self, opts):
+            with pytest.raises(ValueError):
+                s.bytes(**opts)
+
     class TestMinlengthSpec:
         @pytest.fixture
         def minlength_spec(self) -> Spec:
@@ -304,6 +339,22 @@ class TestInstSpecValidation:
         def test_after_spec_failure(self, after_spec: Spec, v):
             assert not after_spec.is_valid(v)
 
+    def test_before_after_agreement(self):
+        s.inst(
+            before=datetime(year=2000, month=1, day=1),
+            after=datetime(year=2000, month=1, day=1),
+        )
+        s.inst(
+            before=datetime(year=2000, month=1, day=1),
+            after=datetime(year=2000, month=1, day=2),
+        )
+
+        with pytest.raises(ValueError):
+            s.inst(
+                before=datetime(year=2000, month=1, day=2),
+                after=datetime(year=2000, month=1, day=1),
+            )
+
     class TestIsAwareSpec:
         @pytest.fixture
         def aware_spec(self) -> Spec:
@@ -378,6 +429,22 @@ class TestDateSpecValidation:
         )
         def test_after_spec_failure(self, after_spec: Spec, v):
             assert not after_spec.is_valid(v)
+
+    def test_before_after_agreement(self):
+        s.date(
+            before=date(year=2000, month=1, day=1),
+            after=date(year=2000, month=1, day=1),
+        )
+        s.date(
+            before=date(year=2000, month=1, day=1),
+            after=date(year=2000, month=1, day=2),
+        )
+
+        with pytest.raises(ValueError):
+            s.date(
+                before=date(year=2000, month=1, day=2),
+                after=date(year=2000, month=1, day=1),
+            )
 
     class TestIsAwareSpec:
         def test_aware_spec(self):
@@ -464,6 +531,22 @@ class TestTimeSpecValidation:
         )
         def test_after_spec_failure(self, after_spec: Spec, v):
             assert not after_spec.is_valid(v)
+
+    def test_before_after_agreement(self):
+        s.date(
+            before=time(hour=12, minute=0, second=0),
+            after=time(hour=12, minute=0, second=0),
+        )
+        s.date(
+            before=time(hour=12, minute=0, second=0),
+            after=time(hour=12, minute=0, second=1),
+        )
+
+        with pytest.raises(ValueError):
+            s.date(
+                before=time(hour=12, minute=0, second=2),
+                after=time(hour=12, minute=0, second=0),
+            )
 
     class TestIsAwareSpec:
         @pytest.fixture
@@ -581,10 +664,9 @@ class TestInstStringSpecValidation:
         assert INVALID is iso_inst_str_spec.conform(v)
 
 
-def test_nilable():
-    assert s.nilable(s.is_str).is_valid(None)
-    assert s.nilable(s.is_str).is_valid("")
-    assert s.nilable(s.is_str).is_valid("a string")
+@pytest.mark.parametrize("v", [None, "", "a string"])
+def test_nilable(v):
+    assert s.nilable(s.is_str).is_valid(v)
 
 
 class TestNumSpecValidation:
@@ -735,7 +817,7 @@ class TestStringSpecValidation:
                 s.str(length=v)
 
         @pytest.mark.parametrize("v", ["xxx", "xxy", "773", "833"])
-        def test_maxlength_spec(self, count_spec: Spec, v):
+        def test_count_spec(self, count_spec: Spec, v):
             assert count_spec.is_valid(v)
 
         @pytest.mark.parametrize("v", ["", "x", "xx", "xxxx", "xxxxx"])
