@@ -239,6 +239,95 @@ class TestBytesSpecValidation:
             s.bytes(minlength=10, maxlength=8)
 
 
+class TestEmailSpecValidation:
+    @pytest.mark.parametrize(
+        "spec_kwargs",
+        [
+            {"host": "coverahealth.com"},
+            {"localpart": "chris.person"},
+            {"domain": "coverahealth.com", "domain_regex": r"(api\.)?coverahealth.com"},
+        ],
+    )
+    def test_invalid_email_specs(self, spec_kwargs):
+        with pytest.raises(ValueError):
+            s.email(**spec_kwargs)
+
+    @pytest.fixture
+    def email_spec(self) -> Spec:
+        return s.email()
+
+    @pytest.mark.parametrize(
+        "v",
+        [
+            "chris@localhost",
+            "chris@gmail.com",
+            "chris+extra@gmail.com",
+            "chris.person@gmail.com",
+        ],
+    )
+    def test_is_email_str(self, email_spec: Spec, v):
+        assert email_spec.is_valid(v)
+
+    @pytest.mark.parametrize(
+        "v",
+        [
+            None,
+            25,
+            3.14,
+            [],
+            set(),
+            "abcdef",
+            "abcdefg",
+            "100017",
+            "10017-383",
+            "1945-9-2",
+            "430-10-02",
+            "chris",
+            "chris@",
+            "@gmail",
+            "@gmail.com",
+        ],
+    )
+    def test_is_not_email_str(self, email_spec: Spec, v):
+        assert not email_spec.is_valid(v)
+
+    @pytest.fixture
+    def email_address(self) -> str:
+        return "chris.person@gmail.com"
+
+    @pytest.mark.parametrize(
+        "spec_kwargs",
+        [
+            {"username": "chris.person"},
+            {"username_in": {"jdoe", "chris.person"}},
+            {"username_regex": r"(chris\.person|jdoe)"},
+            {"domain": "gmail.com"},
+            {"domain_in": {"coverahealth.com", "gmail.com"}},
+            {"domain_regex": r"(coverahealth|gmail)\.com"},
+        ],
+    )
+    def test_is_email_str(self, email_address: str, spec_kwargs):
+        spec = s.email(**spec_kwargs)
+        assert spec.is_valid(email_address)
+        assert email_address == spec.conform(email_address)
+
+    @pytest.mark.parametrize(
+        "spec_kwargs",
+        [
+            {"username": "jdoe"},
+            {"username_in": {"jdoe", "john.doe"}},
+            {"username_regex": r"(john\.|j)doe"},
+            {"domain": "coverahealth.com"},
+            {"domain_in": {"mail.coverahealth.com", "coverahealth.com"}},
+            {"domain_regex": r"(mail\.)?coverahealth\.com"},
+        ],
+    )
+    def test_is_not_email_str(self, email_address: str, spec_kwargs):
+        spec = s.email(**spec_kwargs)
+        assert not spec.is_valid(email_address)
+        assert INVALID is spec.conform(email_address)
+
+
 class TestInstSpecValidation:
     @pytest.mark.parametrize("v", [datetime(year=2000, month=1, day=1)])
     def test_is_inst(self, v):
@@ -922,46 +1011,6 @@ class TestStringSpecValidation:
 
 
 class TestStringFormatValidation:
-    class TestEmailFormat:
-        @pytest.fixture
-        def email_spec(self) -> Spec:
-            return s.str(format_="email")
-
-        @pytest.mark.parametrize(
-            "v",
-            [
-                "chris@localhost",
-                "chris@gmail.com",
-                "chris+extra@gmail.com",
-                "chris.person@gmail.com",
-            ],
-        )
-        def test_is_email_str(self, email_spec: Spec, v):
-            assert email_spec.is_valid(v)
-
-        @pytest.mark.parametrize(
-            "v",
-            [
-                None,
-                25,
-                3.14,
-                [],
-                set(),
-                "abcdef",
-                "abcdefg",
-                "100017",
-                "10017-383",
-                "1945-9-2",
-                "430-10-02",
-                "chris",
-                "chris@",
-                "@gmail",
-                "@gmail.com",
-            ],
-        )
-        def test_is_not_email_str(self, email_spec: Spec, v):
-            assert not email_spec.is_valid(v)
-
     class TestISODateFormat:
         @pytest.fixture
         def conform(self):

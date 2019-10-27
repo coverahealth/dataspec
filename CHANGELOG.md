@@ -19,11 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `s.all` and `s.any` create `ValidatorSpec`s now rather than `PredicateSpec`s
   which yield richer error details from constituent Specs
 - Add `bytes` exact length validation
+- Converted the string `email` formatter into a full Spec factory as `s.email` (#27)
 
 ### Fixed
 - Guard against `inspect.signature` failures with Python builtins (#18)
 - `s.date`, `s.inst`, and `s.time` spec factory `before` and `after` must now
-  agree (`before` must be strictly equal to or before `after`) (#25) 
+  agree (`before` must be strictly equal to or before `after`) (#25)
+
+### Removed
+- The string email address format checker from #6 (#27)
 
 
 ## [0.1.0] - 2019-10-20

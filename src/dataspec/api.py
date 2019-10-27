@@ -16,6 +16,7 @@ from dataspec.factories import (
     bytes_spec,
     date_spec,
     datetime_spec,
+    email_spec,
     every_spec,
     nilable_spec,
     num_spec,
@@ -102,6 +103,7 @@ class SpecAPI:
     bool = staticmethod(bool_spec)
     bytes = staticmethod(bytes_spec)
     date = staticmethod(date_spec)
+    email = staticmethod(email_spec)
     every = staticmethod(every_spec)
     inst = staticmethod(datetime_spec)
     nilable = staticmethod(nilable_spec)
@@ -117,6 +119,7 @@ class SpecAPI:
     is_bool = bool_spec("is_bool")
     is_bytes = bytes_spec("is_bytes")
     is_date = date_spec("is_date")
+    is_email = email_spec("is_email")
     is_false = bool_spec("is_false", allowed_values={False})
     is_float = num_spec("is_float", type_=float)
     is_inst = datetime_spec("is_inst")

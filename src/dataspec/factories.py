@@ -3,9 +3,10 @@ import sys
 import threading
 import uuid
 from datetime import date, datetime, time
-from email.headerregistry import Address
+from email.headerregistry import Address as EmailAddress
 from functools import partial
 from typing import (
+    AbstractSet,
     Any,
     Callable,
     Iterator,
@@ -486,6 +487,207 @@ else:
         )
 
 
+_IGNORE_OBJ_PARAM = object()
+_EMAIL_RESULT_FIELDS = frozenset({"username", "domain"})
+
+
+def _obj_attr_validator(  # pylint: disable=too-many-arguments
+    object_name: str,
+    attr: str,
+    exact_attr: Any,
+    regex_attr: Any,
+    in_attr: Any,
+    exact_attr_ignore: Any = _IGNORE_OBJ_PARAM,
+    regex_attr_ignore: Any = _IGNORE_OBJ_PARAM,
+    in_attr_ignore: Any = _IGNORE_OBJ_PARAM,
+    disallowed_attrs_regex: Optional[AbstractSet[str]] = None,
+) -> Optional[ValidatorFn]:
+    """
+    Create a validator function for an object attribute based on one of three
+    distinct rules: exact value match (as Python ``==``), constrained set of exact
+    values (using Python sets and the ``in`` operator), or a regex value match.
+
+    :param object_name: the name of the validated object type for error messages
+    :param attr: the name of the attribute on the object to check; will fed to
+        Python's :py:func:`getattr` function
+    :param exact_attr: if ``exact_attr`` is any value other than ``exact_attr_ignore``,
+        create a validator function which checks that an object attribute exactly
+        matches this value
+    :param regex_attr: if ``regex_attr`` is any value other than ``regex_attr_ignore``,
+        create a validator function which checks that an object attribute matches this
+        regex pattern by :py:func:`re.fullmatch`
+    :param in_attr: if ``in_attr`` is any value other than ``in_attr_ignore``,
+        create a validator function which checks that an object attribute matches one
+        of the values of this set
+    :param exact_attr_ignore: the value of ``exact_attr` which indicates it should be
+        ignored as a rule
+    :param regex_attr_ignore: the value of ``regex_attr` which indicates it should be
+        ignored as a rule
+    :param in_attr_ignore: the value of ``in_attr` which indicates it should be
+        ignored as a rule
+    :param disallowed_attrs_regex: if specified, a set of attributes for which creating
+        a regex rule should be disallowed
+    :return: if any valid rules are given, return a validator function as defined above
+    """
+
+    def get_obj_attr(v: Any, attr: str = attr) -> Any:
+        return getattr(v, attr)
+
+    if exact_attr is not exact_attr_ignore:
+
+        @pred_to_validator(
+            f"{object_name} attribute '{attr}' value '{{value}}' is not '{exact_attr}'",
+            complement=True,
+            convert_value=get_obj_attr,
+        )
+        def obj_attr_equals(v: EmailAddress) -> bool:
+            return get_obj_attr(v) == exact_attr
+
+        return obj_attr_equals
+
+    elif regex_attr is not regex_attr_ignore:
+
+        if disallowed_attrs_regex is not None and attr in disallowed_attrs_regex:
+            raise ValueError(
+                f"Cannot define regex spec for {object_name} attribute '{attr}'"
+            )
+
+        if not isinstance(regex_attr, str):
+            raise TypeError(
+                f"{object_name} attribute '{attr}_regex' must be a string value"
+            )
+
+        pattern = re.compile(regex_attr)
+
+        @pred_to_validator(
+            f"{object_name} attribute '{attr}' value '{{value}}' does not "
+            f"match regex '{regex_attr}'",
+            complement=True,
+            convert_value=get_obj_attr,
+        )
+        def obj_attr_matches_regex(v: EmailAddress) -> bool:
+            return bool(re.fullmatch(pattern, get_obj_attr(v)))
+
+        return obj_attr_matches_regex
+
+    elif in_attr is not in_attr_ignore:
+
+        if not isinstance(in_attr, (frozenset, set)):
+            raise TypeError(
+                f"{object_name} attribute '{attr}_in' must be set or frozenset"
+            )
+
+        @pred_to_validator(
+            f"{object_name} attribute '{attr}' value '{{value}}' not in {in_attr}",
+            complement=True,
+            convert_value=get_obj_attr,
+        )
+        def obj_attr_is_allowed_value(v: EmailAddress) -> bool:
+            return get_obj_attr(v) in in_attr
+
+        return obj_attr_is_allowed_value
+    else:
+        return None
+
+
+def email_spec(
+    tag: Optional[Tag] = None, conformer: Optional[Conformer] = None, **kwargs
+) -> Spec:
+    """
+    Return a spec that can validate strings containing email addresses.
+
+    Email string specs always verify that input values are strings and that they can
+    be successfully parsed by :py:func:`email.headerregistry.Address`.
+
+    Other restrictions can be applied by passing any one of three different keyword
+    arguments for any of the fields of :py:class:`email.headerregistry.Address`. For
+    example, to specify restrictions on the ``username`` field, you could use the
+    following keywords:
+
+     * ``domain`` accepts any value (including :py:obj:`None`) and checks for an
+       exact match of the keyword argument value
+     * ``domain_in`` takes a :py:class:``set`` or :py:class:``frozenset`` and
+       validates that the `domain`` field is an exact match with one of the
+       elements of the set
+     * ``domain_regex`` takes a :py:class:``str``, creates a Regex pattern from
+       that string, and validates that ``domain`` is a match (by
+       :py:func:`re.fullmatch`) with the given pattern
+
+    The value :py:obj:`None` can be used for comparison in all cases, though the value
+    :py:obj:`None` is never tolerated as a valid ``username`` or ``domain`` of an
+    email address.
+
+    At most only one restriction can be applied to any given field for the
+    :py:class:`email.headerregistry.Address`. Specifying more than one restriction for
+    a field will produce a :py:exc:`ValueError`.
+
+    Providing a keyword argument for a non-existent field of
+    :py:class:`urllib.parse.ParseResult` will produce a :py:exc:`ValueError`.
+
+    :param tag: an optional tag for the resulting spec
+    :param username: if specified, require an exact match for ``username``
+    :param username_in: if specified, require ``username`` to match at least one value in the set
+    :param username_regex: if specified, require ``username`` to match the regex pattern
+    :param domain: if specified, require an exact match for ``domain``
+    :param domain_in: if specified, require ``domain`` to match at least one value in the set
+    :param domain_regex: if specified, require ``domain`` to match the regex pattern
+    :param conformer: an optional conformer for the value
+    :return: a Spec which can validate that a string contains an email address
+    """
+    tag = tag or "email"
+
+    @pred_to_validator(f"Value '{{value}}' is not type 'str'", complement=True)
+    def is_str(x: Any) -> bool:
+        return isinstance(x, str)
+
+    child_validators = []
+    for email_attr in _EMAIL_RESULT_FIELDS:
+        in_attr = kwargs.pop(f"{email_attr}_in", _IGNORE_OBJ_PARAM)
+        regex_attr = kwargs.pop(f"{email_attr}_regex", _IGNORE_OBJ_PARAM)
+        exact_attr = kwargs.pop(f"{email_attr}", _IGNORE_OBJ_PARAM)
+
+        if (
+            sum(
+                int(v is not _IGNORE_OBJ_PARAM)
+                for v in [in_attr, regex_attr, exact_attr]
+            )
+            > 1
+        ):
+            raise ValueError(
+                f"Email specs may only specify one of {email_attr}, "
+                f"{email_attr}_in, and {email_attr}_regex for any Email attribute"
+            )
+
+        attr_validator = _obj_attr_validator(
+            "Email", email_attr, exact_attr, regex_attr, in_attr
+        )
+        if attr_validator is not None:
+            child_validators.append(attr_validator)
+
+    if kwargs:
+        raise ValueError(f"Unused keyword arguments: {kwargs}")
+
+    def validate_email(p: EmailAddress) -> Iterator[ErrorDetails]:
+        for validate in child_validators:
+            yield from validate(p)
+
+    def str_contains_email(s: str) -> Iterator[ErrorDetails]:
+        try:
+            addr = EmailAddress(addr_spec=s)
+        except (TypeError, ValueError) as e:
+            yield ErrorDetails(
+                message=f"String '{s}' does not contain a valid email address: {e}",
+                pred=str_contains_email,
+                value=s,
+            )
+        else:
+            yield from validate_email(addr)
+
+    return ValidatorSpec.from_validators(
+        tag, is_str, str_contains_email, conformer=conformer
+    )
+
+
 def nilable_spec(
     *args: Union[Tag, SpecPredicate], conformer: Optional[Conformer] = None
 ) -> Spec:
@@ -770,18 +972,6 @@ def register_str_format(
     return create_str_format
 
 
-@register_str_format("email")
-def _str_is_email_address(s: str) -> Iterator[ErrorDetails]:
-    try:
-        Address(addr_spec=s)
-    except (TypeError, ValueError) as e:
-        yield ErrorDetails(
-            message=f"String does not contain a valid email address: {e}",
-            pred=_str_is_email_address,
-            value=s,
-        )
-
-
 @register_str_format("uuid", conformer=uuid.UUID)
 def _str_is_uuid(s: str) -> Iterator[ErrorDetails]:
     try:
@@ -897,9 +1087,6 @@ def str_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
 
     Several useful defaults are supplied as part of this library:
 
-     * `email` validates that a string contains a valid email address format (though
-       not necessarily that the username or hostname exists or that the email address
-       would be able to receive email)
      * `iso-date` validates that a string contains a valid ISO 8601 date string
      * `iso-datetime` (Python 3.7+) validates that a string contains a valid ISO 8601
        date and time stamp
@@ -1011,7 +1198,6 @@ def str_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
     return ValidatorSpec.from_validators(tag or "str", *validators, conformer=conformer)
 
 
-_IGNORE_URL_PARAM = object()
 _URL_RESULT_FIELDS = frozenset(
     {
         "scheme",
@@ -1025,66 +1211,7 @@ _URL_RESULT_FIELDS = frozenset(
         "port",
     }
 )
-
-
-def _url_attr_validator(
-    attr: str, exact_attr: Any, regex_attr: Any, in_attr: Any
-) -> Optional[ValidatorFn]:
-    """Return a urllib.parse.ParseResult attribute validator function for the given
-    attribute based on the values of the three rule types."""
-
-    def get_url_attr(v: Any, attr: str = attr) -> Any:
-        return getattr(v, attr)
-
-    if exact_attr is not _IGNORE_URL_PARAM:
-
-        @pred_to_validator(
-            f"URL attribute '{attr}' value '{{value}}' is not '{exact_attr}'",
-            complement=True,
-            convert_value=get_url_attr,
-        )
-        def url_attr_equals(v: Any) -> bool:
-            return get_url_attr(v) == exact_attr
-
-        return url_attr_equals
-
-    elif regex_attr is not _IGNORE_URL_PARAM:
-
-        if attr == "port":
-            raise ValueError(f"Cannot define regex spec for URL attribute 'port'")
-
-        if not isinstance(regex_attr, str):
-            raise TypeError(f"URL attribute '{attr}_regex' must be a string value")
-
-        pattern = re.compile(regex_attr)
-
-        @pred_to_validator(
-            f"URL attribute '{attr}' value '{{value}}' does not "
-            f"match regex '{regex_attr}'",
-            complement=True,
-            convert_value=get_url_attr,
-        )
-        def url_attr_matches_regex(v: ParseResult) -> bool:
-            return bool(re.fullmatch(pattern, get_url_attr(v)))
-
-        return url_attr_matches_regex
-
-    elif in_attr is not _IGNORE_URL_PARAM:
-
-        if not isinstance(in_attr, (frozenset, set)):
-            raise TypeError(f"URL attribute '{attr}_in' must be set or frozenset")
-
-        @pred_to_validator(
-            f"URL attribute '{attr}' value '{{value}}' not in {in_attr}",
-            complement=True,
-            convert_value=get_url_attr,
-        )
-        def url_attr_is_allowed_value(v: ParseResult) -> bool:
-            return get_url_attr(v) in in_attr
-
-        return url_attr_is_allowed_value
-    else:
-        return None
+_URL_DISALLOWED_REGEX_FIELDS = frozenset({"port"})
 
 
 def url_str_spec(
@@ -1129,6 +1256,9 @@ def url_str_spec(
     Attempting to create a URL Spec without specifying a restriction will produce a
     :py:exc:`ValueError`.
 
+    Providing a keyword argument for a non-existent field of
+    :py:class:`urllib.parse.ParseResult` will produce a :py:exc:`ValueError`.
+
     :param tag: an optional tag for the resulting spec
     :param query: an optional spec for the :py:class:`dict` created by calling
         :py:func:`urllib.parse.parse_qs` on the :py:attr:`urllib.parse.ParseResult.query`
@@ -1171,13 +1301,13 @@ def url_str_spec(
 
     child_validators = []
     for url_attr in _URL_RESULT_FIELDS:
-        in_attr = kwargs.pop(f"{url_attr}_in", _IGNORE_URL_PARAM)
-        regex_attr = kwargs.pop(f"{url_attr}_regex", _IGNORE_URL_PARAM)
-        exact_attr = kwargs.pop(f"{url_attr}", _IGNORE_URL_PARAM)
+        in_attr = kwargs.pop(f"{url_attr}_in", _IGNORE_OBJ_PARAM)
+        regex_attr = kwargs.pop(f"{url_attr}_regex", _IGNORE_OBJ_PARAM)
+        exact_attr = kwargs.pop(f"{url_attr}", _IGNORE_OBJ_PARAM)
 
         if (
             sum(
-                int(v is not _IGNORE_URL_PARAM)
+                int(v is not _IGNORE_OBJ_PARAM)
                 for v in [in_attr, regex_attr, exact_attr]
             )
             > 1
@@ -1187,7 +1317,14 @@ def url_str_spec(
                 f"{url_attr}_in, and {url_attr}_regex for any URL attribute"
             )
 
-        attr_validator = _url_attr_validator(url_attr, exact_attr, regex_attr, in_attr)
+        attr_validator = _obj_attr_validator(
+            "URL",
+            url_attr,
+            exact_attr,
+            regex_attr,
+            in_attr,
+            disallowed_attrs_regex=_URL_DISALLOWED_REGEX_FIELDS,
+        )
         if attr_validator is not None:
             child_validators.append(attr_validator)
 
