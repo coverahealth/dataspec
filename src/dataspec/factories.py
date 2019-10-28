@@ -298,7 +298,11 @@ def every_spec(
     return PredicateSpec(tag or "every", always_true, conformer=conformer)
 
 
-def _make_datetime_spec_factory(
+_DEFAULT_STRPTIME_DATE = date(1900, 1, 1)
+_DEFAULT_STRPTIME_TIME = time()
+
+
+def _make_datetime_spec_factory(  # noqa: MC0001
     type_: Union[Type[datetime], Type[date], Type[time]]
 ) -> Callable[..., Spec]:
     """
@@ -317,9 +321,22 @@ def _make_datetime_spec_factory(
     :py:class:`datetime.date` values cannot be aware or naive."""
     )
 
+    format_docstring_blurb = (
+        f"""If the
+    :py:class:`datetime.datetime` object parsed from the ``format_`` string contains
+    a portion not available in :py:class:`datetime.{type_.__name__}, then the
+    validator will emit an error at runtime."""
+        if type_ is not datetime
+        else ""
+    )
+
     docstring = f"""
     Return a Spec which validates :py:class:`datetime.{type_.__name__}` types with
     common rules.
+
+    If ``format_`` is specified, the resulting Spec will accept string values and
+    attempt to coerce them to :py:class:`datetime.{type_.__name__}` instances first
+    before applying the other specified validations. {format_docstring_blurb}
 
     If ``before`` is specified, the resulting Spec will validate that input values
     are before ``before`` by Python's ``<`` operator. If ``after`` is specified, the
@@ -330,6 +347,10 @@ def _make_datetime_spec_factory(
     {aware_docstring_blurb}
 
     :param tag: an optional tag for the resulting spec
+    :param format: if specified, a time format string which will be fed to
+        :py:meth:`datetime.{type_.__name__}.strptime` to convert the input string
+        to a :py:class:`datetime.{type_.__name__}` before applying the other
+        validations
     :param before: if specified, the input value must come before this date or time
     :param after: if specified, the input value must come after this date or time
     :param is_aware: if :py:obj:`True`, validate that input objects are timezone
@@ -339,8 +360,30 @@ def _make_datetime_spec_factory(
     :return: a Spec which validates :py:class:`datetime.{type_.__name__}` types
     """
 
-    def _datetime_spec_factory(
+    if type_ is date:
+
+        def strptime(s: str, fmt: str) -> date:
+            parsed = datetime.strptime(s, fmt)
+            if parsed.time() != _DEFAULT_STRPTIME_TIME:
+                raise TypeError(f"Parsed time includes date portion: {parsed.time()}")
+            return parsed.date()
+
+    elif type_ is time:
+
+        def strptime(s: str, fmt: str) -> time:  # type: ignore
+            parsed = datetime.strptime(s, fmt)
+            if parsed.date() != _DEFAULT_STRPTIME_DATE:
+                raise TypeError(f"Parsed date includes time portion: {parsed.date()}")
+            return parsed.time()
+
+    else:
+        assert type_ is datetime
+
+        strptime = datetime.strptime  # type: ignore
+
+    def _datetime_spec_factory(  # pylint: disable=too-many-arguments
         tag: Optional[Tag] = None,
+        format_: Optional[str] = None,
         before: Optional[type_] = None,  # type: ignore
         after: Optional[type_] = None,  # type: ignore
         is_aware: Optional[bool] = None,
@@ -399,9 +442,45 @@ def _make_datetime_spec_factory(
             elif is_aware is True:
                 raise TypeError(f"Type {type_} cannot be timezone aware")
 
-        return ValidatorSpec.from_validators(
-            tag or type_.__name__, *validators, conformer=conformer
-        )
+        if format_ is not None:
+
+            def conform_datetime_str(s: str) -> Union[datetime, date, time, Invalid]:
+                try:
+                    return strptime(s, format_)  # type: ignore
+                except (TypeError, ValueError):
+                    return INVALID
+
+            def validate_datetime_str(s: str) -> Iterator[ErrorDetails]:
+                try:
+                    dt = strptime(s, format_)  # type: ignore
+                except TypeError as e:
+                    yield ErrorDetails(
+                        message=f"String contains invalid portion for type: {e}",
+                        pred=validate_datetime_str,
+                        value=s,
+                    )
+                except ValueError:
+                    yield ErrorDetails(
+                        message=(
+                            "String does not contain a date which can be "
+                            f"parsed as '{format_}'"
+                        ),
+                        pred=validate_datetime_str,
+                        value=s,
+                    )
+                else:
+                    for validate in validators:
+                        yield from validate(dt)
+
+            return ValidatorSpec(
+                tag or type.__name__,
+                validate_datetime_str,
+                conformer=conformer or conform_datetime_str,
+            )
+        else:
+            return ValidatorSpec.from_validators(
+                tag or type_.__name__, *validators, conformer=conformer
+            )
 
     _datetime_spec_factory.__doc__ = docstring
     return _datetime_spec_factory

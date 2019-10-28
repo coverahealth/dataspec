@@ -352,6 +352,38 @@ class TestInstSpecValidation:
     def test_is_inst_failure(self, v):
         assert not s.is_inst.is_valid(v)
 
+    class TestFormatSpec:
+        @pytest.fixture
+        def format_spec(self) -> Spec:
+            return s.inst(format_="%Y-%m-%d %I:%M:%S")
+
+        @pytest.mark.parametrize(
+            "v,parsed",
+            [
+                ("2003-01-14 01:41:16", datetime(2003, 1, 14, 1, 41, 16)),
+                ("0994-12-31 08:00:00", datetime(994, 12, 31, 8)),
+            ],
+        )
+        def test_is_inst_spec(self, format_spec: Spec, v, parsed: date):
+            assert format_spec.is_valid(v)
+            assert parsed == format_spec.conform(v)
+
+        @pytest.mark.parametrize(
+            "v",
+            [
+                "994-12-31",
+                "2000-13-20",
+                "1984-09-32",
+                "84-10-4",
+                "23:18:22",
+                "11:40:72",
+                "06:89:13",
+            ],
+        )
+        def test_is_not_inst_spec(self, format_spec: Spec, v):
+            assert not format_spec.is_valid(v)
+            assert INVALID is format_spec.conform(v)
+
     class TestBeforeSpec:
         @pytest.fixture
         def before_spec(self) -> Spec:
@@ -469,6 +501,34 @@ class TestDateSpecValidation:
     def test_is_date_failure(self, v):
         assert not s.is_date.is_valid(v)
 
+    class TestFormatSpec:
+        @pytest.fixture
+        def format_spec(self) -> Spec:
+            return s.date(format_="%Y-%m-%d")
+
+        @pytest.mark.parametrize(
+            "v,parsed",
+            [("2003-01-14", date(2003, 1, 14)), ("0994-12-31", date(994, 12, 31))],
+        )
+        def test_is_date_spec(self, format_spec: Spec, v, parsed: date):
+            assert format_spec.is_valid(v)
+            assert parsed == format_spec.conform(v)
+
+        # Even though a value like "2003-1-14" should be invalid by the chosen
+        # format string, Python's strptime implementation appears to be more
+        # lenient than it should: https://bugs.python.org/issue33941
+        @pytest.mark.parametrize(
+            "v", ["994-12-31", "2000-13-20", "1984-09-32", "84-10-4"]
+        )
+        def test_is_not_date_spec(self, format_spec: Spec, v):
+            assert not format_spec.is_valid(v)
+            assert INVALID is format_spec.conform(v)
+
+        def test_date_spec_with_time_fails(self):
+            assert not s.date(format_="%Y-%m-%d %H:%M:%S").is_valid(
+                "2003-11-20 22:16:08"
+            )
+
     class TestBeforeSpec:
         @pytest.fixture
         def before_spec(self) -> Spec:
@@ -566,6 +626,28 @@ class TestTimeSpecValidation:
     )
     def test_is_time_failure(self, v):
         assert not s.is_time.is_valid(v)
+
+    class TestFormatSpec:
+        @pytest.fixture
+        def format_spec(self) -> Spec:
+            return s.time(format_="%I:%M:%S")
+
+        @pytest.mark.parametrize(
+            "v,parsed", [("01:41:16", time(1, 41, 16)), ("08:00:00", time(8))]
+        )
+        def test_is_time_spec(self, format_spec: Spec, v, parsed: date):
+            assert format_spec.is_valid(v)
+            assert parsed == format_spec.conform(v)
+
+        @pytest.mark.parametrize("v", ["23:18:22", "11:40:72", "06:89:13"])
+        def test_is_not_time_spec(self, format_spec: Spec, v):
+            assert not format_spec.is_valid(v)
+            assert INVALID is format_spec.conform(v)
+
+        def test_time_spec_with_date_fails(self):
+            assert not s.time(format_="%Y-%m-%d %H:%M:%S").is_valid(
+                "2003-11-20 22:16:08"
+            )
 
     class TestBeforeSpec:
         @pytest.fixture
