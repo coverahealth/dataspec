@@ -29,6 +29,8 @@ jobs:
             - "/usr/local/lib/python3.6/site-packages"
             - "/usr/local/lib/python3.7/site-packages"
             - "/usr/local/lib/python3.8/site-packages"
+      - store_artifacts:
+          path: .coverage
       - store_test_results:
           path: junit
 

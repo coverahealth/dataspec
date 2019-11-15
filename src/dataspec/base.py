@@ -618,8 +618,11 @@ def pred_to_validator(
     message: str,
     complement: bool = False,
     convert_value: Callable[[Any], Any] = _identity,
+    **fmtkwargs,
 ):
     """Decorator to convert a simple predicate to a validator function."""
+
+    assert "value" not in fmtkwargs, "Key 'value' is not allowed in pred format kwargs"
 
     def to_validator(pred: PredicateFn) -> ValidatorFn:
         pred = _complement(pred) if complement else pred
@@ -628,7 +631,9 @@ def pred_to_validator(
         def validator(v) -> Iterable[ErrorDetails]:
             if pred(v):
                 yield ErrorDetails(
-                    message=message.format(value=convert_value(v)), pred=pred, value=v
+                    message=message.format(value=convert_value(v), **fmtkwargs),
+                    pred=pred,
+                    value=v,
                 )
 
         return validator
