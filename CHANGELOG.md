@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 
+## [v0.2.3] - 2019-11-27
+### Fixed
+- The default conformer for Specs created from `Enum` instances now accepts the
+  `Enum.name` value in addition to the `Enum.value` and `Enum` singleton itself (#41)
+
+
 ## [v0.2.2] - 2019-11-27
 ### Added
 - Allow `s.str`'s `regex` kwarg to be a pre-existing pattern returned from
@@ -14,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - `s.any` now conforms values using the first successful Spec's conformer (#35)
+
 
 ## [v0.2.1] - 2019-10-28
 ### Fixed
@@ -52,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial commit
 
+[v0.2.3]: https://github.com/coverahealth/dataspec/compare/v0.2.2..v0.2.3
 [v0.2.2]: https://github.com/coverahealth/dataspec/compare/v0.2.1..v0.2.2
 [v0.2.1]: https://github.com/coverahealth/dataspec/compare/v0.2.0..v0.2.1
 [v0.2.0]: https://github.com/coverahealth/dataspec/compare/v0.1.post1..v0.2.0
