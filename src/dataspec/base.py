@@ -486,6 +486,22 @@ class ObjectSpec(DictSpec):
         raise TypeError("Cannot use a default conformer for an Object")
 
 
+def _enum_conformer(e: EnumMeta) -> Conformer:
+    """Create a conformer for Enum types which accepts Enum instances, Enum values,
+    and Enum names."""
+
+    def conform_enum(v) -> Union[EnumMeta, Invalid]:
+        try:
+            return e(v)
+        except ValueError:
+            try:
+                return e[v]
+            except KeyError:
+                return INVALID
+
+    return conform_enum
+
+
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class SetSpec(Spec):
     tag: Tag
@@ -668,7 +684,7 @@ def make_spec(  # pylint: disable=inconsistent-return-statements
         return SetSpec(
             tag or pred.__name__,
             frozenset(chain.from_iterable([mem, mem.name, mem.value] for mem in pred)),
-            conformer=conformer or pred,
+            conformer=conformer or _enum_conformer(pred),
         )
     elif isinstance(pred, tuple):
         return TupleSpec.from_val(tag, pred, conformer=conformer)

@@ -526,12 +526,18 @@ class TestEnumSetSpec:
         assert not enum_spec.is_valid(None)
 
     def test_enum_spec_conformation(self, enum_spec: Spec):
+        assert self.YesNo.YES == enum_spec.conform("YES")
+        assert self.YesNo.NO == enum_spec.conform("NO")
         assert self.YesNo.YES == enum_spec.conform("Yes")
         assert self.YesNo.NO == enum_spec.conform("No")
         assert self.YesNo.YES == enum_spec.conform(self.YesNo.YES)
         assert self.YesNo.NO == enum_spec.conform(self.YesNo.NO)
         assert INVALID is enum_spec.conform("Maybe")
         assert INVALID is enum_spec.conform(None)
+
+        # Testing the last branch of the conformer
+        assert INVALID is enum_spec.conform_valid("Maybe")
+        assert INVALID is enum_spec.conform_valid(None)
 
 
 class TestTupleSpecValidation:

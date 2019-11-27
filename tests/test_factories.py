@@ -115,6 +115,7 @@ class TestAnySpecConformation:
     )
     def test_conformation_failure(self, spec: Spec, v):
         assert INVALID is spec.conform(v)
+        assert INVALID is spec.conform_valid(v)
 
     @pytest.fixture
     def tag_spec(self) -> Spec:
@@ -141,6 +142,7 @@ class TestAnySpecConformation:
     )
     def test_tagged_conformation_failure(self, tag_spec: Spec, v):
         assert INVALID is tag_spec.conform(v)
+        assert INVALID is tag_spec.conform_valid(v)
 
 
 class TestAnySpecWithOuterConformation:
@@ -163,6 +165,7 @@ class TestAnySpecWithOuterConformation:
     )
     def test_conformation_failure(self, spec: Spec, v):
         assert INVALID is spec.conform(v)
+        assert INVALID is spec.conform_valid(v)
 
     @pytest.fixture
     def tag_spec(self) -> Spec:
@@ -190,6 +193,7 @@ class TestAnySpecWithOuterConformation:
     )
     def test_tagged_conformation_failure(self, tag_spec: Spec, v):
         assert INVALID is tag_spec.conform(v)
+        assert INVALID is tag_spec.conform_valid(v)
 
 
 @pytest.mark.parametrize(
