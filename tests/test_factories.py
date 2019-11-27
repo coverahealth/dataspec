@@ -1,3 +1,4 @@
+import re
 import sys
 import uuid
 from datetime import date, datetime, time, timezone
@@ -1063,9 +1064,9 @@ class TestStringSpecValidation:
             s.str(minlength=10, maxlength=8)
 
     class TestRegexSpec:
-        @pytest.fixture
-        def zipcode_spec(self) -> Spec:
-            return s.str(regex=r"\d{5}(-\d{4})?")
+        @pytest.fixture(params=[r"\d{5}(-\d{4})?", re.compile(r"\d{5}(-\d{4})?")])
+        def zipcode_spec(self, request) -> Spec:
+            return s.str(regex=request.param)
 
         @pytest.mark.parametrize(
             "v", ["10017", "10017-3332", "37779", "37779-2770", "00000"]

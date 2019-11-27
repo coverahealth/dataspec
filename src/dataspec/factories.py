@@ -14,6 +14,7 @@ from typing import (
     Mapping,
     MutableMapping,
     Optional,
+    Pattern,
     Set,
     Tuple,
     Type,
@@ -1125,7 +1126,7 @@ def str_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
     length: Optional[int] = None,
     minlength: Optional[int] = None,
     maxlength: Optional[int] = None,
-    regex: Optional[str] = None,
+    regex: Union[Pattern, str, None] = None,
     format_: Optional[str] = None,
     conform_format: Optional[str] = None,
     conformer: Optional[Conformer] = None,
@@ -1146,8 +1147,10 @@ def str_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
     a :py:exc:`ValueError` will be raised. If any length value is not an
     :py:class:`int` a :py:exc:`TypeError` will be raised.
 
-    If ``regex`` is specified, a Regex pattern will be created by :py:func:`re.compile`
-    and :py:func:`re.fullmatch` will be used to validate input strings. If ``format_``
+    If ``regex`` is specified and is a :py:class:`str`, a Regex pattern will be
+    created by :py:func:`re.compile`. If ``regex`` is specified and is a
+    :py:obj:`typing.Pattern`, the supplied pattern will be used. In both cases, the
+    :py:func:`re.fullmatch` will be used to validate input strings. If ``format_``
     is specified, the input string will be validated using the Spec registered to
     validate for the string name of the format. If ``conform_format`` is specified,
     the input string will be validated using the Spec registered to validate for the
@@ -1254,7 +1257,7 @@ def str_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
             )
 
     if regex is not None and format_ is None and conform_format is None:
-        _pattern = re.compile(regex)
+        _pattern = regex if isinstance(regex, Pattern) else re.compile(regex)
 
         @pred_to_validator(
             "String '{value}' does match regex '{regex}'", complement=True, regex=regex
