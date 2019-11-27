@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allow `s.str`'s `regex` kwarg to be a pre-existing pattern returned from
   `re.compile` (#36)
 
+### Fixed
+- `s.any` now conforms values using the first successful Spec's conformer (#35)
+
 ## [v0.2.1] - 2019-10-28
 ### Fixed
 - Allow regex repetition pattern (such as `\d{5}`) in error format string

@@ -87,15 +87,109 @@ class TestAllSpecConformation:
         assert expected == all_spec.conform(v)
 
 
-def test_any():
-    spec = s.any(s.is_num, s.is_str)
-    assert spec.is_valid("5")
-    assert spec.is_valid(5)
-    assert spec.is_valid(3.14)
-    assert not spec.is_valid(None)
-    assert not spec.is_valid({})
-    assert not spec.is_valid(set())
-    assert not spec.is_valid([])
+class TestAnySpecValidation:
+    @pytest.fixture
+    def any_spec(self) -> Spec:
+        return s.any(s.is_num, s.is_str)
+
+    @pytest.mark.parametrize("v", ["5", 5, 3.14])
+    def test_any_validation(self, any_spec: Spec, v):
+        assert any_spec.is_valid(v)
+
+    @pytest.mark.parametrize("v", [None, {}, set(), []])
+    def test_any_validation_failure(self, any_spec: Spec, v):
+        assert not any_spec.is_valid(v)
+
+
+class TestAnySpecConformation:
+    @pytest.fixture
+    def spec(self) -> Spec:
+        return s.any(s.num("num"), s.str("numstr", regex=r"\d+", conformer=int))
+
+    @pytest.mark.parametrize("expected,v", [(5, "5"), (5, 5), (3.14, 3.14), (-10, -10)])
+    def test_conformation(self, spec: Spec, expected, v):
+        assert expected == spec.conform(v)
+
+    @pytest.mark.parametrize(
+        "v", [None, {}, set(), [], "500x", "Just a sentence", b"500", b"byteword"]
+    )
+    def test_conformation_failure(self, spec: Spec, v):
+        assert INVALID is spec.conform(v)
+
+    @pytest.fixture
+    def tag_spec(self) -> Spec:
+        return s.any(
+            s.num("num"),
+            s.str("numstr", regex=r"\d+", conformer=int),
+            tag_conformed=True,
+        )
+
+    @pytest.mark.parametrize(
+        "expected,v",
+        [
+            (("numstr", 5), "5"),
+            (("num", 5), 5),
+            (("num", 3.14), 3.14),
+            (("num", -10), -10),
+        ],
+    )
+    def test_tagged_conformation(self, tag_spec: Spec, expected, v):
+        assert expected == tag_spec.conform(v)
+
+    @pytest.mark.parametrize(
+        "v", [None, {}, set(), [], "500x", "Just a sentence", b"500", b"byteword"]
+    )
+    def test_tagged_conformation_failure(self, tag_spec: Spec, v):
+        assert INVALID is tag_spec.conform(v)
+
+
+class TestAnySpecWithOuterConformation:
+    @pytest.fixture
+    def spec(self) -> Spec:
+        return s.any(
+            s.num("num"),
+            s.str("numstr", regex=r"\d+", conformer=int),
+            conformer=lambda v: v + 5,
+        )
+
+    @pytest.mark.parametrize(
+        "expected,v", [(10, "5"), (10, 5), (8.14, 3.14), (-5, -10)]
+    )
+    def test_conformation(self, spec: Spec, expected, v):
+        assert expected == spec.conform(v)
+
+    @pytest.mark.parametrize(
+        "v", [None, {}, set(), [], "500x", "Just a sentence", b"500", b"byteword"]
+    )
+    def test_conformation_failure(self, spec: Spec, v):
+        assert INVALID is spec.conform(v)
+
+    @pytest.fixture
+    def tag_spec(self) -> Spec:
+        return s.any(
+            s.num("num"),
+            s.str("numstr", regex=r"\d+", conformer=int),
+            tag_conformed=True,
+            conformer=lambda v: v + 5,
+        )
+
+    @pytest.mark.parametrize(
+        "expected,v",
+        [
+            (("numstr", 10), "5"),
+            (("num", 10), 5),
+            (("num", 8.14), 3.14),
+            (("num", -5), -10),
+        ],
+    )
+    def test_tagged_conformation(self, tag_spec: Spec, expected, v):
+        assert expected == tag_spec.conform(v)
+
+    @pytest.mark.parametrize(
+        "v", [None, {}, set(), [], "500x", "Just a sentence", b"500", b"byteword"]
+    )
+    def test_tagged_conformation_failure(self, tag_spec: Spec, v):
+        assert INVALID is tag_spec.conform(v)
 
 
 @pytest.mark.parametrize(

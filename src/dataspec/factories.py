@@ -56,7 +56,11 @@ def _tag_maybe(
     return tag, (cast("Tuple[T, ...]", (maybe_tag, *args)) if tag is None else args)
 
 
-def any_spec(*preds: SpecPredicate, conformer: Optional[Conformer] = None) -> Spec:
+def any_spec(
+    *preds: SpecPredicate,
+    tag_conformed: bool = False,
+    conformer: Optional[Conformer] = None,
+) -> Spec:
     """
     Return a Spec which validates input values against any one of an arbitrary
     number of input Specs.
@@ -71,8 +75,20 @@ def any_spec(*preds: SpecPredicate, conformer: Optional[Conformer] = None) -> Sp
     no :py:class:`dataspec.base.ErrorDetails` will be emitted by the
     :py:meth:`dataspec.base.Spec.validate` method.
 
+    The conformer for the returned Spec will select the conformer for the first
+    contituent Spec which successfully validates the input value. If a ``conformer``
+    is specified for this Spec, that conformer will be applied after the successful
+    Spec's conformer. If ``tag_conformed`` is specified, the final conformed value
+    from both conformers will be wrapped in a tuple, where the first element is the
+    tag of the successful Spec and the second element is the final conformed value.
+    If ``tag_conformed`` is not specified (which is the default), the conformer will
+    emit the conformed value directly.
+
     :param tag: an optional tag for the resulting spec
     :param preds: one or more Specs or values which can be converted into a Spec
+    :param tag_conformed: if :py:obj:`True`, the conformed value will be wrapped in a
+        2-tuple where the first element is the successful spec and the second element
+        is the conformed value; if :py:obj:`False`, return only the conformed value
     :param conformer: an optional conformer for the value
     :return: a Spec
     """
@@ -90,7 +106,23 @@ def any_spec(*preds: SpecPredicate, conformer: Optional[Conformer] = None) -> Sp
 
         yield from errors
 
-    return ValidatorSpec(tag or "any", _any_valid, conformer=conformer)
+    def _conform_any(e):
+        for spec in specs:
+            spec_errors = [error for error in spec.validate(e)]
+            if spec_errors:
+                continue
+            else:
+                conformed = spec.conform_valid(e)
+                assert conformed is not INVALID
+                if conformer is not None:
+                    conformed = conformer(conformed)
+                if tag_conformed:
+                    conformed = (spec.tag, conformed)
+                return conformed
+
+        return INVALID
+
+    return ValidatorSpec(tag or "any", _any_valid, conformer=_conform_any)
 
 
 def all_spec(*preds: SpecPredicate, conformer: Optional[Conformer] = None) -> Spec:
