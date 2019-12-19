@@ -98,7 +98,7 @@ def any_spec(
     def _any_valid(e) -> Iterator[ErrorDetails]:
         errors = []
         for spec in specs:
-            spec_errors = [error for error in spec.validate(e)]
+            spec_errors = list(spec.validate(e))
             if spec_errors:
                 errors.extend(spec_errors)
             else:
@@ -108,17 +108,17 @@ def any_spec(
 
     def _conform_any(e):
         for spec in specs:
-            spec_errors = [error for error in spec.validate(e)]
+            spec_errors = list(spec.validate(e))
             if spec_errors:
                 continue
-            else:
-                conformed = spec.conform_valid(e)
-                assert conformed is not INVALID
-                if conformer is not None:
-                    conformed = conformer(conformed)
-                if tag_conformed:
-                    conformed = (spec.tag, conformed)
-                return conformed
+
+            conformed = spec.conform_valid(e)
+            assert conformed is not INVALID
+            if conformer is not None:
+                conformed = conformer(conformed)
+            if tag_conformed:
+                conformed = (spec.tag, conformed)
+            return conformed
 
         return INVALID
 
@@ -168,6 +168,27 @@ def all_spec(*preds: SpecPredicate, conformer: Optional[Conformer] = None) -> Sp
         tag or "all",
         _all_valid,
         conformer=compose_conformers(*specs, conform_final=conformer),
+    )
+
+
+def blankable_spec(
+    *args: Union[Tag, SpecPredicate], conformer: Optional[Conformer] = None
+):
+    """
+    Return a Spec which will validate values either by the input Spec or allow the
+    empty string.
+
+    The returned Spec is equivalent to `s.any(spec, {""})`.
+
+    :param tag: an optional tag for the resulting spec
+    :param pred: a Spec or value which can be converted into a Spec
+    :param conformer: an optional conformer for the value
+    :return: a Spec which validates either according to ``pred`` or the empty string
+    """
+    tag, preds = _tag_maybe(*args)  # pylint: disable=no-value-for-parameter
+    assert len(preds) == 1, "Only one predicate allowed"
+    return any_spec(
+        tag or "blankable", preds[0], {""}, conformer=conformer  # type: ignore
     )
 
 
@@ -311,6 +332,38 @@ def bytes_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
 
     return ValidatorSpec.from_validators(
         tag or "bytes", *validators, conformer=conformer
+    )
+
+
+def default_spec(
+    *args: Union[Tag, SpecPredicate],
+    default: Any = None,
+    conformer: Optional[Conformer] = None,
+) -> Spec:
+    """
+    Return a Spec which will validate every value, but which will conform values not
+    meeting the Spec to a default value.
+
+    The returned Spec is equivalent to the following Spec:
+
+        `s.any(spec, s.every(conformer=lambda _: default)`
+
+    This Spec **will allow any value to pass**, but will conform to the given default
+    if the data does not satisfy the input Spec.
+
+    :param tag: an optional tag for the resulting spec
+    :param pred: a Spec or value which can be converted into a Spec
+    :param default: the default value to apply if the Spec does not validate a value
+    :param conformer: an optional conformer for the value
+    :return: a Spec which validates every value, but which conforms values to a default
+    """
+    tag, preds = _tag_maybe(*args)  # pylint: disable=no-value-for-parameter
+    assert len(preds) == 1, "Only one predicate allowed"
+    return any_spec(
+        tag or "default",  # type: ignore
+        preds[0],  # type: ignore
+        every_spec(conformer=lambda _: default),
+        conformer=conformer,
     )
 
 

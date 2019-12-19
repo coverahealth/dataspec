@@ -12,10 +12,12 @@ from dataspec.base import (
 from dataspec.factories import (
     all_spec,
     any_spec,
+    blankable_spec,
     bool_spec,
     bytes_spec,
     date_spec,
     datetime_spec,
+    default_spec,
     email_spec,
     every_spec,
     nilable_spec,
@@ -100,9 +102,11 @@ class SpecAPI:
     # Spec factories
     any = staticmethod(any_spec)
     all = staticmethod(all_spec)
+    blankable = staticmethod(blankable_spec)
     bool = staticmethod(bool_spec)
     bytes = staticmethod(bytes_spec)
     date = staticmethod(date_spec)
+    default = staticmethod(default_spec)
     email = staticmethod(email_spec)
     every = staticmethod(every_spec)
     inst = staticmethod(datetime_spec)

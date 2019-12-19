@@ -203,6 +203,22 @@ def test_is_any(v):
     assert s.is_any.is_valid(v)
 
 
+class TestBlankableSpecValidation:
+    @pytest.fixture
+    def blankable_spec(self) -> Spec:
+        return s.blankable(s.str(regex=r"\d{5}"))
+
+    @pytest.mark.parametrize("v", ["", "11111", "12345"])
+    def test_blankable_validation(self, blankable_spec: Spec, v):
+        assert blankable_spec.is_valid(v)
+
+    @pytest.mark.parametrize(
+        "v", ["    ", "1234", "1234D", "   12345", None, {}, set(), []]
+    )
+    def test_blankable_validation_failure(self, blankable_spec: Spec, v):
+        assert not blankable_spec.is_valid(v)
+
+
 class TestBoolValidation:
     @pytest.mark.parametrize("v", [True, False])
     def test_bool(self, v):
@@ -336,6 +352,59 @@ class TestBytesSpecValidation:
 
         with pytest.raises(ValueError):
             s.bytes(minlength=10, maxlength=8)
+
+
+class TestDefaultSpecValidation:
+    @pytest.fixture
+    def default_spec(self) -> Spec:
+        return s.default(s.str(regex=r"\d{5}"))
+
+    @pytest.mark.parametrize(
+        "v",
+        [
+            "    ",
+            "1234",
+            "1234D",
+            "   12345",
+            None,
+            {},
+            set(),
+            [],
+            "",
+            "11111",
+            "12345",
+        ],
+    )
+    def test_default_validation(self, default_spec: Spec, v):
+        assert default_spec.is_valid(v)
+
+
+class TestDefaultSpecConformation:
+    @pytest.fixture
+    def default_spec(self) -> Spec:
+        return s.default(
+            s.str(regex=r"\d{5}", conformer=lambda v: v[:2] + "-" + v[2:]), default=""
+        )
+
+    @pytest.mark.parametrize(
+        "v,conformed",
+        [
+            ("    ", ""),
+            ("1234", ""),
+            ("1234D", ""),
+            ("   12345", ""),
+            (None, ""),
+            ({}, ""),
+            (set(), ""),
+            ([], ""),
+            ("", ""),
+            ("11111", "11-111"),
+            ("12345", "12-345"),
+        ],
+    )
+    def test_default_conformation(self, default_spec: Spec, v, conformed):
+        assert default_spec.is_valid(v)
+        assert conformed == default_spec.conform(v)
 
 
 class TestEmailSpecValidation:
