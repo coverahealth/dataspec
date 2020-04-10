@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Predicates decorated by `pred_to_validator` will now properly be converted into
   validator specs (#54)
+- Apply conformers for `s.inst`, `s.date`, `s.time`, `s.inst_str`, and `s.phone` after
+  the default conformer, so conformers have access to the conformed object (#50)
 
 ## [v0.2.4] - 2019-12-19
 ### Added

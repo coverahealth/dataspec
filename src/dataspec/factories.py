@@ -40,6 +40,7 @@ from dataspec.base import (
     ValidatorFn,
     ValidatorSpec,
     compose_conformers,
+    compose_spec_conformers,
     make_spec,
     pred_to_validator,
 )
@@ -167,7 +168,7 @@ def all_spec(*preds: SpecPredicate, conformer: Optional[Conformer] = None) -> Sp
     return ValidatorSpec(
         tag or "all",
         _all_valid,
-        conformer=compose_conformers(*specs, conform_final=conformer),
+        conformer=compose_spec_conformers(*specs, conform_final=conformer),
     )
 
 
@@ -561,7 +562,9 @@ def _make_datetime_spec_factory(  # noqa: MC0001
             return ValidatorSpec(
                 tag or type.__name__,
                 validate_datetime_str,
-                conformer=conformer or conform_datetime_str,
+                conformer=compose_conformers(
+                    conform_datetime_str, *filter(None, (conformer,))
+                ),
             )
         else:
             return ValidatorSpec.from_validators(
@@ -648,7 +651,12 @@ else:
                 yield from dt_spec.validate(parsed_dt)
 
         return ValidatorSpec.from_validators(
-            tag, is_str, str_contains_datetime, conformer=conformer or parse_date
+            tag,
+            is_str,
+            str_contains_datetime,
+            conformer=compose_conformers(
+                cast(Conformer, parse_date_str), *filter(None, (conformer,))
+            ),
         )
 
 
@@ -982,7 +990,7 @@ else:
         region: Optional[str] = None,
         is_possible: bool = True,
         is_valid: bool = True,
-        conformer: Optional[Conformer] = conform_phonenumber,
+        conformer: Optional[Conformer] = None,
     ) -> Spec:
         """
         Return a Spec that validates strings containing telephone number in most
@@ -1026,6 +1034,7 @@ else:
         """
 
         tag = tag or "phonenumber_str"
+        default_conformer = conform_phonenumber
 
         @pred_to_validator(f"Value '{{value}}' is not type 'str'", complement=True)
         def is_str(x: Any) -> bool:
@@ -1054,8 +1063,7 @@ else:
 
             validators.append(validate_phonenumber_region)
 
-            if conformer is conform_phonenumber:
-                conformer = partial(conform_phonenumber, region=region)
+            default_conformer = partial(default_conformer, region=region)
 
         if is_possible:
 
@@ -1094,7 +1102,12 @@ else:
                 yield from validate_phonenumber(p)
 
         return ValidatorSpec.from_validators(
-            tag, is_str, str_contains_phonenumber, conformer=conformer
+            tag,
+            is_str,
+            str_contains_phonenumber,
+            conformer=compose_conformers(
+                default_conformer, *filter(None, (conformer,))
+            ),
         )
 
 

@@ -656,6 +656,18 @@ class TestInstSpecValidation:
             assert not aware_spec.is_valid(datetime.utcnow())
 
 
+class TestInstSpecConformation:
+    @pytest.fixture
+    def year_spec(self) -> Spec:
+        return s.inst(format_="%Y-%m-%d %I:%M:%S", conformer=lambda inst: inst.year)
+
+    @pytest.mark.parametrize(
+        "inst,year", [("2003-01-14 01:41:16", 2003), ("0994-12-31 08:00:00", 994),],
+    )
+    def test_conformer(self, year_spec: Spec, inst: datetime, year: int):
+        assert year == year_spec.conform(inst)
+
+
 class TestDateSpecValidation:
     @pytest.mark.parametrize(
         "v", [date(year=2000, month=1, day=1), datetime(year=2000, month=1, day=1)]
@@ -769,6 +781,27 @@ class TestDateSpecValidation:
 
             with pytest.raises(TypeError):
                 s.date(is_aware=True)
+
+
+class TestDateSpecConformation:
+    @pytest.fixture
+    def year_spec(self) -> Spec:
+        return s.date(format_="%Y-%m-%d", conformer=lambda dt: dt.year)
+
+    @pytest.mark.parametrize(
+        "dtstr, year",
+        [
+            ("1980-01-15", 1980),
+            ("1980-1-15", 1980),
+            ("1999-12-31", 1999),
+            ("2000-1-1", 2000),
+            ("2000-1-01", 2000),
+            ("2000-01-1", 2000),
+            ("2000-01-01", 2000),
+        ],
+    )
+    def test_conformer(self, year_spec: Spec, dtstr: str, year: int):
+        assert year == year_spec.conform(dtstr)
 
 
 class TestTimeSpecValidation:
@@ -899,6 +932,18 @@ class TestTimeSpecValidation:
             assert not aware_spec.is_valid(time())
 
 
+class TestTimeSpecConformation:
+    @pytest.fixture
+    def hour_spec(self) -> Spec:
+        return s.time(format_="%H:%M:%S", conformer=lambda tm: tm.hour)
+
+    @pytest.mark.parametrize(
+        "tmstr,hour", [("23:18:22", 23), ("11:40:22", 11), ("06:43:13", 6)],
+    )
+    def test_conformer(self, hour_spec: Spec, tmstr: str, hour: int):
+        assert hour == hour_spec.conform(tmstr)
+
+
 @pytest.mark.skipif(parse_date is None, reason="python-dateutil must be installed")
 class TestInstStringSpecValidation:
     ISO_DATETIMES = [
@@ -916,7 +961,9 @@ class TestInstStringSpecValidation:
         ("0031-01-01T00:00:00", datetime(31, 1, 1, 0, 0)),
         ("20080227T21:26:01.123456789", datetime(2008, 2, 27, 21, 26, 1, 123456)),
         ("0003-03-04", datetime(3, 3, 4)),
-        ("950404 122212", datetime(1995, 4, 4, 12, 22, 12)),
+    ]
+    ISO_ONLY_DATETIMES = [
+        ("950404 122212", datetime(9504, 4, 1, 22, 12)),
     ]
     NON_ISO_DATETIMES = [
         ("Thu Sep 25 10:36:28 2003", datetime(2003, 9, 25, 10, 36, 28)),
@@ -964,13 +1011,18 @@ class TestInstStringSpecValidation:
         ("13NOV2017", datetime(2017, 11, 13)),
         ("December.0031.30", datetime(31, 12, 30)),
     ]
+    NON_ISO_ONLY_DATETIMES = [
+        ("950404 122212", datetime(1995, 4, 4, 12, 22, 12)),
+    ]
     ALL_DATETIMES = ISO_DATETIMES + NON_ISO_DATETIMES
 
     @pytest.fixture
     def inst_str_spec(self) -> Spec:
         return s.inst_str()
 
-    @pytest.mark.parametrize("date_str,datetime_obj", ALL_DATETIMES)
+    @pytest.mark.parametrize(
+        "date_str,datetime_obj", ALL_DATETIMES + NON_ISO_ONLY_DATETIMES
+    )
     def test_inst_str_validation(self, inst_str_spec: Spec, date_str, datetime_obj):
         assert inst_str_spec.is_valid(date_str)
         assert datetime_obj == inst_str_spec.conform(date_str)
@@ -986,7 +1038,9 @@ class TestInstStringSpecValidation:
     def iso_inst_str_spec(self) -> Spec:
         return s.inst_str(iso_only=True)
 
-    @pytest.mark.parametrize("date_str,datetime_obj", ISO_DATETIMES)
+    @pytest.mark.parametrize(
+        "date_str,datetime_obj", ISO_DATETIMES + ISO_ONLY_DATETIMES
+    )
     def test_iso_inst_str_validation(
         self, iso_inst_str_spec: Spec, date_str, datetime_obj
     ):

@@ -223,7 +223,7 @@ class ValidatorSpec(Spec):
                 yield from spec.validate(v)
 
         return cls(
-            tag, do_validate, compose_conformers(*specs, conform_final=conformer)
+            tag, do_validate, compose_spec_conformers(*specs, conform_final=conformer)
         )
 
 
@@ -590,7 +590,28 @@ def _enrich_errors(
         yield error.with_details(tag, loc=loc)
 
 
-def compose_conformers(
+def compose_conformers(*conformers: Conformer) -> Conformer:
+    """
+    Return a single conformer which is the composition of the input conformers.
+
+    If a single conformer is given, return the conformer.
+    """
+
+    if len(conformers) == 1:
+        return conformers[0]
+
+    def do_conform(v):
+        conformed_v = v
+        for conform in conformers:
+            conformed_v = conform(conformed_v)
+            if conformed_v is INVALID:
+                break
+        return conformed_v
+
+    return do_conform
+
+
+def compose_spec_conformers(
     *specs: Spec, conform_final: Optional[Conformer] = None
 ) -> Conformer:
     """
