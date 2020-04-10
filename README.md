@@ -112,6 +112,44 @@ spec.is_valid("4716df50-0aa0-4b7d-98a4-1f2b2bcb1c6b")  # True
 spec.is_valid("b4e9735a-ee8c-11e9-8708-4c327592fea9")  # False
 ```
 
+### Validator Specs
+
+Simple predicates make fine specs, but are unable to provide more details to the caller
+about exactly why the input value failed to validate. Validator specs directly yield
+`ErrorDetails` objects which can indicate more precisely why the input data is failing
+to validate.
+
+```python
+def _is_positive_int(v: Any) -> Iterable[ErrorDetails]:
+    if not isinstance(v, int):
+        yield ErrorDetails(
+            message="Value must be an integer", pred=_is_positive_int, value=v
+        )
+    elif v < 1:
+        yield ErrorDetails(
+            message="Number must be greater than 0", pred=_is_positive_int, value=v
+        )
+
+spec = s(_is_positive_int)
+spec.is_valid(5)      # True
+spec.is_valid(0.5)    # False
+spec.validate_ex(-1)  # ValidationError(errors=[ErrorDetails(message="Number must be greater than 0", ...)])
+```
+
+Simple predicates can be converted into validator functions using the builtin
+`pred_to_validator` decorator:
+
+```python
+@pred_to_validator("Number must be greater than 0")
+def _is_positive_num(v: Union[int, float]) -> bool:
+    return v > 0
+
+spec = s(_is_positive_num)
+spec.is_valid(5)      # True
+spec.is_valid(0.5)    # True
+spec.validate_ex(-1)  # ValidationError(errors=[ErrorDetails(message="Number must be greater than 0", ...)])
+```
+
 ### UUID Specs
 
 In the previous section, we used a simple predicate to check that a UUID was a certain
@@ -396,6 +434,24 @@ elements.
 All Specs can be created with optional tags, specified as a string in the first
 positional argument of any spec creation function. Tags are useful for providing
 useful names for specs in debugging and validation messages.
+
+## Patterns
+
+### Factories
+
+Often when validating documents such as a CSV or a JSON blob, you'll find yourself
+writing a series of similar specs again and again. In situations like these, it is
+recommended to create a factory function for generating specs consistently. `dataspec`
+uses this pattern for many of the common spec types described above. This encourages
+reuse of commonly used specs and should help enforce consistency across your domain.
+
+### Reuse
+
+Specs are designed to be immutable, so they may be reused in many different contexts.
+Often, the only the that changes between uses is the tag or conformer. Specs provide a
+convenient API for generating copies of themselves (not modifying the original) which
+update only the relevant attribute. Additionally, Specs can be combined in many useful
+ways to avoid having to redefine common validations repeatedly.
 
 ## License
 

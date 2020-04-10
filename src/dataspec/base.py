@@ -677,6 +677,7 @@ def pred_to_validator(
                     value=v,
                 )
 
+        validator.is_validator_fn = True  # type: ignore
         return validator
 
     return to_validator
@@ -731,7 +732,9 @@ def make_spec(  # pylint: disable=inconsistent-return-statements
             # Some builtins may not be inspectable
             sig = None
 
-        if sig is not None and sig.return_annotation is Iterator[ErrorDetails]:
+        if (
+            sig is not None and sig.return_annotation is Iterator[ErrorDetails]
+        ) or getattr(pred, "is_validator_fn", False):
             return ValidatorSpec(
                 tag or pred.__name__, cast(ValidatorFn, pred), conformer=conformer
             )

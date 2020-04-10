@@ -3,7 +3,7 @@ from typing import Iterator
 import pytest
 
 from dataspec import ErrorDetails, ValidationError, s
-from dataspec.base import PredicateSpec, ValidatorSpec
+from dataspec.base import PredicateSpec, ValidatorSpec, pred_to_validator
 
 
 class TestSpecConstructor:
@@ -33,6 +33,13 @@ class TestSpecConstructor:
             return True
 
         assert isinstance(s(is_valid), PredicateSpec)
+
+    def test_pred_to_validator(self):
+        @pred_to_validator("This value is invalid")
+        def is_valid(v) -> bool:
+            return bool(v)
+
+        assert isinstance(s(is_valid), ValidatorSpec)
 
     def test_no_signature_for_builtins(self):
         s.all(s.str(), str.istitle)

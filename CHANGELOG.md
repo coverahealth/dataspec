@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Add `SpecPredicate` and `tag_maybe` to the public interface (#49)
 
+### Fixed
+- Predicates decorated by `pred_to_validator` will now properly be converted into
+  validator specs (#54)
+
 ## [v0.2.4] - 2019-12-19
 ### Added
 - Add `s.blankable` Spec for specifying optional string values (#45)
