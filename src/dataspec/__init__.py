@@ -5,12 +5,13 @@ from dataspec.base import (
     ErrorDetails,
     PredicateFn,
     Spec,
+    SpecPredicate,
     Tag,
     ValidationError,
     ValidatorFn,
     pred_to_validator,
 )
-from dataspec.factories import register_str_format, register_str_format_spec
+from dataspec.factories import register_str_format, register_str_format_spec, tag_maybe
 
 __all__ = [
     "INVALID",
@@ -18,6 +19,7 @@ __all__ = [
     "ErrorDetails",
     "PredicateFn",
     "SpecAPI",
+    "SpecPredicate",
     "Spec",
     "Tag",
     "ValidatorFn",
@@ -26,4 +28,5 @@ __all__ = [
     "register_str_format",
     "register_str_format_spec",
     "s",
+    "tag_maybe",
 ]

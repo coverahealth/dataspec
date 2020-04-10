@@ -47,7 +47,7 @@ from dataspec.base import (
 T = TypeVar("T")
 
 
-def _tag_maybe(
+def tag_maybe(
     maybe_tag: Union[Tag, T], *args: T
 ) -> Tuple[Optional[str], Tuple[T, ...]]:
     """Return the Spec tag and the remaining arguments if a tag is given, else return
@@ -92,7 +92,7 @@ def any_spec(
     :param conformer: an optional conformer for the value
     :return: a Spec
     """
-    tag, preds = _tag_maybe(*preds)  # pylint: disable=no-value-for-parameter
+    tag, preds = tag_maybe(*preds)  # pylint: disable=no-value-for-parameter
     specs = [make_spec(pred) for pred in preds]
 
     def _any_valid(e) -> Iterator[ErrorDetails]:
@@ -149,7 +149,7 @@ def all_spec(*preds: SpecPredicate, conformer: Optional[Conformer] = None) -> Sp
         conformed value produced by the input Specs conformers
     :return: a Spec
     """
-    tag, preds = _tag_maybe(*preds)  # pylint: disable=no-value-for-parameter
+    tag, preds = tag_maybe(*preds)  # pylint: disable=no-value-for-parameter
     specs = [make_spec(pred) for pred in preds]
 
     def _all_valid(e) -> Iterator[ErrorDetails]:
@@ -185,7 +185,7 @@ def blankable_spec(
     :param conformer: an optional conformer for the value
     :return: a Spec which validates either according to ``pred`` or the empty string
     """
-    tag, preds = _tag_maybe(*args)  # pylint: disable=no-value-for-parameter
+    tag, preds = tag_maybe(*args)  # pylint: disable=no-value-for-parameter
     assert len(preds) == 1, "Only one predicate allowed"
     return any_spec(
         tag or "blankable", preds[0], {""}, conformer=conformer  # type: ignore
@@ -357,7 +357,7 @@ def default_spec(
     :param conformer: an optional conformer for the value
     :return: a Spec which validates every value, but which conforms values to a default
     """
-    tag, preds = _tag_maybe(*args)  # pylint: disable=no-value-for-parameter
+    tag, preds = tag_maybe(*args)  # pylint: disable=no-value-for-parameter
     assert len(preds) == 1, "Only one predicate allowed"
     return any_spec(
         tag or "default",  # type: ignore
@@ -866,7 +866,7 @@ def nilable_spec(
     :return: a Spec which validates either according to ``pred`` or the value
         :py:obj:`None`
     """
-    tag, preds = _tag_maybe(*args)  # pylint: disable=no-value-for-parameter
+    tag, preds = tag_maybe(*args)  # pylint: disable=no-value-for-parameter
     assert len(preds) == 1, "Only one predicate allowed"
     spec = make_spec(cast("SpecPredicate", preds[0]))
 
@@ -943,7 +943,7 @@ def obj_spec(
     *args: Union[Tag, SpecPredicate], conformer: Optional[Conformer] = None
 ) -> Spec:
     """Return a Spec for an Object."""
-    tag, preds = _tag_maybe(*args)  # pylint: disable=no-value-for-parameter
+    tag, preds = tag_maybe(*args)  # pylint: disable=no-value-for-parameter
     assert len(preds) == 1, "Only one predicate allowed"
     return ObjectSpec.from_val(
         tag or "object",

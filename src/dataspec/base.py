@@ -635,8 +635,33 @@ def pred_to_validator(
     complement: bool = False,
     convert_value: Callable[[Any], Any] = _identity,
     **fmtkwargs,
-):
-    """Decorator to convert a simple predicate to a validator function."""
+) -> Callable[[PredicateFn], ValidatorFn]:
+    """
+    Decorator which converts a simple predicate function to a validator function.
+
+    If the wrapped predicate returns a truthy value, the wrapper function will emit a
+    single :py:class:`dataspec.base.ErrorDetails` object with the ``message`` format
+    string interpolated with the failing value as ``value`` (possibly subject to
+    conversion by the optional keyword argument ``convert_value``) and any other
+    key/value pairs from ``fmtkwargs``.
+
+    If ``complement`` keyword argument is ``True``, the return value of the decorated
+    predicate will be converted as by Python's ``not`` operator and the return value
+    will be used to determine whether or not an error has occurred. This is a
+    convenient way to negate a predicate function without having to modify the function
+    itself.
+
+    :param message: a format string which will be the base error message in the
+        resulting :py:class:`dataspec.base.ErrorDetails` object
+    :param complement: if :py:obj:`True`, the boolean complement of the decorated
+        function's return value will indicate failure
+    :param convert_value: an optional function which can convert the value before
+        interpolating it into the error message
+    :param fmtkwargs: optional key/value pairs which will be interpolated into
+        the error message
+    :return: a validator function which can be fed into a
+        :py:class:`dataspec.base.ValidatorSpec`
+    """
 
     assert "value" not in fmtkwargs, "Key 'value' is not allowed in pred format kwargs"
 

@@ -207,7 +207,7 @@ Specs can be defined for heterogenous collections of elements, which is often th
 case for Python's `tuple` type. To define a spec for a tuple, pass a tuple of specs for
 each element in the collection at the corresponding tuple index:
 
-```
+```python
 s(
     (
         s.str("id", format_="uuid"),
@@ -320,7 +320,7 @@ spec = s(
         "last_name": s.str("last_name"),
         "date_of_birth": s.str("date_of_birth", format_="iso-date"),
         "gender": s("gender", {"M", "F"}),
-        s.opt("state"): s.str(minlength=2, maxlength=2),
+        s.opt("state"): s.str("state", minlength=2, maxlength=2),
     }
 )
 spec.is_valid(  # True
@@ -397,12 +397,6 @@ All Specs can be created with optional tags, specified as a string in the first
 positional argument of any spec creation function. Tags are useful for providing
 useful names for specs in debugging and validation messages.
 
-## TODOs
- - in dict specs, default child spec tag from corresponding dictionary key
- - break out conformers into separate object? main value would be to propogate
-   `.conform_valid()` calls all the way through; currently they don't propogate
-   past collection, dict, and tuple specs
-   
 ## License
 
 MIT License
