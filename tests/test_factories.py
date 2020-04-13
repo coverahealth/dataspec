@@ -6,7 +6,7 @@ from enum import Enum
 
 import pytest
 
-from dataspec import INVALID, Spec, s
+from dataspec import INVALID, Spec, ValidationError, s
 
 try:
     from dateutil.parser import parse as parse_date
@@ -405,6 +405,56 @@ class TestDefaultSpecConformation:
     def test_default_conformation(self, default_spec: Spec, v, conformed):
         assert default_spec.is_valid(v)
         assert conformed == default_spec.conform(v)
+
+
+class TestDictTagSpecValidation:
+    def test_invalid_dict_tag_spec(self):
+        with pytest.raises(ValueError):
+            s.dict_tag(
+                "person",
+                {"id": s.str(format_="uuid"), "first_name": s.str()},
+                {"last_name": s.str()},
+            )
+
+        with pytest.raises(ValueError):
+            s.dict_tag(
+                {"id": s.str(format_="uuid"), "first_name": s.str()},
+                {"last_name": s.str()},
+            )
+
+        with pytest.raises(TypeError):
+            s.dict_tag("person", [{"id": s.str(format_="uuid"), "first_name": s.str()}])
+
+        with pytest.raises(TypeError):
+            s.dict_tag([{"id": s.str(format_="uuid"), "first_name": s.str()}])
+
+    @pytest.mark.parametrize(
+        "v,via",
+        [
+            (
+                {"name": "Mark Jones", "license_states": "GA"},
+                ["licensures", "license_states", "coll"],
+            ),
+            (
+                {"name": "Darryl Smith", "license_states": ["NY", "California"]},
+                ["licensures", "license_states", "state", "str_is_exactly_len"],
+            ),
+            ({"name": "GaryBusey"}, ["licensures", "name", "str_matches_regex"]),
+        ],
+    )
+    def test_error_details(self, v, via):
+        try:
+            s.dict_tag(
+                "licensures",
+                {
+                    "name": s.str(regex=r"(\w+) (\w+)"),
+                    s.opt("license_states"): [s.str("state", length=2)],
+                },
+            ).validate_ex(v)
+            assert False
+        except ValidationError as e:
+            err = e.errors[0]
+            assert via == err.via
 
 
 class TestEmailSpecValidation:

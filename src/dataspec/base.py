@@ -740,10 +740,11 @@ def make_spec(  # pylint: disable=inconsistent-return-statements
     elif isinstance(pred, dict):
         return DictSpec.from_val(tag, pred, conformer=conformer)
     elif isinstance(pred, Spec):
+        if tag is not None:
+            pred = pred.with_tag(tag)
         if conformer is not None:
-            return pred.with_conformer(conformer)
-        else:
-            return pred
+            pred = pred.with_conformer(conformer)
+        return pred
     elif isinstance(pred, type):
         return type_spec(tag, pred, conformer=conformer)
     elif callable(pred):

@@ -179,7 +179,7 @@ def blankable_spec(
     Return a Spec which will validate values either by the input Spec or allow the
     empty string.
 
-    The returned Spec is equivalent to `s.any(spec, {""})`.
+    The returned Spec is equivalent to ``s.any(spec, {""})``.
 
     :param tag: an optional tag for the resulting spec
     :param pred: a Spec or value which can be converted into a Spec
@@ -658,6 +658,49 @@ else:
                 cast(Conformer, parse_date_str), *filter(None, (conformer,))
             ),
         )
+
+
+def dict_tag_spec(
+    *args: Union[Tag, SpecPredicate], conformer: Optional[Conformer] = None
+) -> Spec:
+    """
+    Return a mapping Spec for which the Tags for each of the ``dict`` values is set
+    to the corresponding key.
+
+    This is a convenience factory for the common pattern of creating a mapping Spec
+    with all of the key Specs' Tags bearing the same name as the corresponding key.
+    The value Specs are created as by :py:data:`dataspec.s`, so existing Specs will
+    not be modified; instead new Specs will be created by
+    :py:meth:`dataspec.Spec.with_tag`.
+
+    For more precise tagging of mapping Spec values, use the default ``s`` constructor
+    with a ``dict`` value.
+
+    :param tag: an optional tag for the resulting spec
+    :param pred: a mapping spec predicate
+    :param conformer: an optional conformer for the value
+    :return: a mapping Spec
+    """
+    tag, preds = tag_maybe(*args)  # pylint: disable=no-value-for-parameter
+    if len(preds) > 1:
+        raise ValueError(
+            f"Dict specs may only specify one spec predicate, not {len(preds)}"
+        )
+
+    pred = preds[0]
+    if not isinstance(pred, dict):
+        raise TypeError(f"Dict spec predicate must be a dict, not {type(pred)}")
+
+    def _unwrap_opt_key(k: Union[OptionalKey, str]) -> str:
+        if isinstance(k, OptionalKey):
+            return k.key
+        return k
+
+    return make_spec(
+        *((tag,) if tag is not None else ()),
+        {k: make_spec(_unwrap_opt_key(k), v) for k, v in pred.items()},
+        conformer=conformer,
+    )
 
 
 _IGNORE_OBJ_PARAM = object()

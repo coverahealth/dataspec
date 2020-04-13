@@ -18,6 +18,7 @@ from dataspec.factories import (
     date_spec,
     datetime_spec,
     default_spec,
+    dict_tag_spec,
     email_spec,
     every_spec,
     nilable_spec,
@@ -107,6 +108,7 @@ class SpecAPI:
     bytes = staticmethod(bytes_spec)
     date = staticmethod(date_spec)
     default = staticmethod(default_spec)
+    dict_tag = staticmethod(dict_tag_spec)
     email = staticmethod(email_spec)
     every = staticmethod(every_spec)
     inst = staticmethod(datetime_spec)
