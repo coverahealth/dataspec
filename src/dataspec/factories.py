@@ -510,7 +510,7 @@ def _make_datetime_spec_factory(  # noqa: MC0001
             if type_ is datetime:
 
                 @pred_to_validator(
-                    f"Datetime '{{value}}' is not aware", complement=is_aware
+                    "Datetime '{value}' is not aware", complement=is_aware
                 )
                 def datetime_is_aware(d: datetime) -> bool:
                     return d.tzinfo is not None and d.tzinfo.utcoffset(d) is not None
@@ -519,9 +519,7 @@ def _make_datetime_spec_factory(  # noqa: MC0001
 
             elif type_ is time:
 
-                @pred_to_validator(
-                    f"Time '{{value}}' is not aware", complement=is_aware
-                )
+                @pred_to_validator("Time '{value}' is not aware", complement=is_aware)
                 def time_is_aware(t: time) -> bool:
                     return t.tzinfo is not None and t.tzinfo.utcoffset(None) is not None
 
@@ -632,7 +630,7 @@ else:
 
         tag = tag or "datetime_str"
 
-        @pred_to_validator(f"Value '{{value}}' is not type 'str'", complement=True)
+        @pred_to_validator("Value '{value}' is not type 'str'", complement=True)
         def is_str(x: Any) -> bool:
             return isinstance(x, str)
 
@@ -1079,7 +1077,7 @@ else:
         tag = tag or "phonenumber_str"
         default_conformer = conform_phonenumber
 
-        @pred_to_validator(f"Value '{{value}}' is not type 'str'", complement=True)
+        @pred_to_validator("Value '{value}' is not type 'str'", complement=True)
         def is_str(x: Any) -> bool:
             return isinstance(x, str)
 
@@ -1094,7 +1092,7 @@ else:
             country_code = phonenumbers.country_code_for_region(region)
 
             @pred_to_validator(
-                f"Parsed telephone number regions ({{value}}) does not "
+                "Parsed telephone number regions ({value}) does not "
                 f"match expected region {region}",
                 complement=True,
                 convert_value=lambda p: ", ".join(
@@ -1111,7 +1109,7 @@ else:
         if is_possible:
 
             @pred_to_validator(
-                f"Parsed telephone number '{{value}}' is not possible", complement=True
+                "Parsed telephone number '{value}' is not possible", complement=True
             )
             def validate_phonenumber_is_possible(p: phonenumbers.PhoneNumber) -> bool:
                 return phonenumbers.is_possible_number(p)
@@ -1121,7 +1119,7 @@ else:
         if is_valid:
 
             @pred_to_validator(
-                f"Parsed telephone number '{{value}}' is not valid", complement=True
+                "Parsed telephone number '{value}' is not valid", complement=True
             )
             def validate_phonenumber_is_valid(p: phonenumbers.PhoneNumber) -> bool:
                 return phonenumbers.is_valid_number(p)
@@ -1199,7 +1197,7 @@ def _str_is_uuid(s: str) -> Iterator[ErrorDetails]:
         uuid.UUID(s)
     except ValueError:
         yield ErrorDetails(
-            message=f"String does not contain UUID", pred=_str_is_uuid, value=s
+            message="String does not contain UUID", pred=_str_is_uuid, value=s
         )
 
 
@@ -1211,7 +1209,7 @@ if sys.version_info >= (3, 7):
             date.fromisoformat(s)
         except ValueError:
             yield ErrorDetails(
-                message=f"String does not contain ISO formatted date",
+                message="String does not contain ISO formatted date",
                 pred=_str_is_iso_date,
                 value=s,
             )
@@ -1222,7 +1220,7 @@ if sys.version_info >= (3, 7):
             datetime.fromisoformat(s)
         except ValueError:
             yield ErrorDetails(
-                message=f"String does not contain ISO formatted datetime",
+                message="String does not contain ISO formatted datetime",
                 pred=_str_is_iso_datetime,
                 value=s,
             )
@@ -1233,7 +1231,7 @@ if sys.version_info >= (3, 7):
             time.fromisoformat(s)
         except ValueError:
             yield ErrorDetails(
-                message=f"String does not contain ISO formatted time",
+                message="String does not contain ISO formatted time",
                 pred=_str_is_iso_time,
                 value=s,
             )
@@ -1335,7 +1333,7 @@ def str_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
     :return: a Spec which validates strings
     """
 
-    @pred_to_validator(f"Value '{{value}}' is not a string", complement=True)
+    @pred_to_validator("Value '{value}' is not a string", complement=True)
     def is_str(s: Any) -> bool:
         return isinstance(s, str)
 
@@ -1516,7 +1514,7 @@ def url_str_spec(
     :return: a Spec which can validate that a string contains a URL
     """
 
-    @pred_to_validator(f"Value '{{value}}' is not a string", complement=True)
+    @pred_to_validator("Value '{value}' is not a string", complement=True)
     def is_str(s: Any) -> bool:
         return isinstance(s, str)
 
@@ -1560,7 +1558,7 @@ def url_str_spec(
         raise ValueError(f"Unused keyword arguments: {kwargs}")
 
     if query_spec is None and not child_validators:
-        raise ValueError(f"URL specs must include at least one validation rule")
+        raise ValueError("URL specs must include at least one validation rule")
 
     def validate_parse_result(v: ParseResult) -> Iterator[ErrorDetails]:
         for validate in child_validators:
@@ -1611,7 +1609,7 @@ def uuid_spec(
     :return: a Spec which validates UUIDs
     """
 
-    @pred_to_validator(f"Value '{{value}}' is not a UUID", complement=True)
+    @pred_to_validator("Value '{value}' is not a UUID", complement=True)
     def is_uuid(v: Any) -> bool:
         return isinstance(v, uuid.UUID)
 
@@ -1622,7 +1620,7 @@ def uuid_spec(
         if not {1, 3, 4, 5}.issuperset(set(versions)):
             raise ValueError("UUID versions must be specified as a set of integers")
 
-        @pred_to_validator(f"UUID '{{value}}' is not RFC 4122 variant", complement=True)
+        @pred_to_validator("UUID '{value}' is not RFC 4122 variant", complement=True)
         def uuid_is_rfc_4122(v: uuid.UUID) -> bool:
             return v.variant is uuid.RFC_4122
 

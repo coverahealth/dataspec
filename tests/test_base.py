@@ -665,6 +665,7 @@ class TestTypeSpec:
     @pytest.mark.parametrize(
         "tp,vals",
         [
+            (None, [None]),
             (bool, [True, False]),
             (bytes, [b"", b"a", b"bytes"]),
             (dict, [{}, {"a": "b"}]),
@@ -683,6 +684,7 @@ class TestTypeSpec:
     @pytest.fixture
     def python_vals(self):
         return [
+            None,
             True,
             False,
             b"",

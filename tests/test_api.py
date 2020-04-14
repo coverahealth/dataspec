@@ -7,14 +7,10 @@ from dataspec.base import PredicateSpec, ValidatorSpec, pred_to_validator
 
 
 class TestSpecConstructor:
-    @pytest.mark.parametrize("v", [None, 5, 3.14, 8j])
+    @pytest.mark.parametrize("v", [5, 3.14, 8j, "a value"])
     def test_invalid_specs(self, v):
         with pytest.raises(TypeError):
             s(v)
-
-    def test_spec_with_no_pred(self):
-        with pytest.raises(IndexError):
-            s("string")
 
     def test_validator_spec(self):
         def is_valid(v) -> Iterator[ErrorDetails]:

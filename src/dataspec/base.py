@@ -494,7 +494,7 @@ class DictSpec(Spec):
                     )
         except TypeError:
             yield ErrorDetails(
-                message=f"Value is not a mapping type",
+                message="Value is not a mapping type",
                 pred=self,
                 value=d,
                 via=[self.tag],
@@ -771,7 +771,7 @@ def type_spec(
     )
 
 
-def make_spec(  # pylint: disable=inconsistent-return-statements
+def make_spec(  # pylint: disable=inconsistent-return-statements  # noqa: MC0001
     *args: Union[Tag, SpecPredicate], conformer: Optional[Conformer] = None
 ) -> Spec:
     """
@@ -784,7 +784,9 @@ def make_spec(  # pylint: disable=inconsistent-return-statements
     be *exactly* ``Iterator[ErrorDetails]`` ).
 
     Specs may be created from Python types, in which case a Spec will be produced
-    that performs an :py:func:`isinstance` check.
+    that performs an :py:func:`isinstance` check. :py:obj:`None` may be provided as
+    a shortcut for ``type(None)`` . To specify a nilable value, you should use
+    :py:meth:`dataspec.SpecAPI.nilable` instead.
 
     Specs may be created for enumerated types using a Python ``set`` or ``frozenset``
     or using Python :py:class:`enum.Enum` types. Specs created for enumerated types
@@ -820,7 +822,11 @@ def make_spec(  # pylint: disable=inconsistent-return-statements
     :return: a :py:class:`dataspec.base.Spec` instance
     """
     tag = args[0] if isinstance(args[0], str) else None
-    pred = args[0] if tag is None else args[1]
+
+    try:
+        pred = args[0] if tag is None else args[1]
+    except IndexError:
+        raise TypeError("Expected some spec predicate; received only a Tag")
 
     if isinstance(pred, (frozenset, set)):
         return SetSpec(tag or "set", pred, conformer=conformer)
@@ -861,5 +867,7 @@ def make_spec(  # pylint: disable=inconsistent-return-statements
             return PredicateSpec(
                 tag or pred.__name__, cast(PredicateFn, pred), conformer=conformer
             )
+    elif pred is None:
+        return type_spec(tag, type(None), conformer=conformer)
     else:
         raise TypeError(f"Expected some spec predicate; received type {type(pred)}")
