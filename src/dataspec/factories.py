@@ -1154,6 +1154,135 @@ else:
         )
 
 
+def rename_spec(
+    tag: Optional[Tag] = None,
+    replacements: Optional[Mapping[Any, Any]] = None,
+    retain_replaced_keys: bool = False,
+    overwrite_duplicate_keys: bool = False,
+    type_: Tuple[Type[Mapping], ...] = (dict,),
+    conformer: Optional[Conformer] = None,
+) -> Spec:
+    """
+    Return a Spec that validates values are mapping types and conforms the value by
+    renaming keys.
+
+    Providing a mapping of input keys to replacements is **required** as the keyword
+    argument ``replacements``. The keys for this mapping are keys from the input value
+    and the associated value is the intended replacement value. If the value is a
+    :py:class:`list` , then all values of the list will be set to the value of the
+    input value associated with the key being replaced. If a key appears in the
+    ``replacements`` mapping but does not appear in the input value being validated,
+    no error will be raised. To validate the map, this Spec should be chained with
+    a standard mapping spec via :py:meth:`dataspec.SpecAPI.all` .
+
+    If ``retain_replaced_keys`` keyword argument is :py:obj:`True` , the replaced keys
+    will be included in the conformed mapping. Otherwise, replace keys will be
+    discarded.
+
+    If ``overwrite_duplicate_keys`` keyword argument is :py:obj:`True` , duplicate keys
+    will be overwritten silently by the default conformer. Otherwise, an additional
+    validator Spec will be provided which validates that no duplicate keys exist in the
+    renamed mapping. The validator will emit one :py:class:`dataspec.ErrorDetails`
+    instance per duplicate key.
+
+    If ``type_`` is specified, the resulting Spec will only validate the input value as
+    types named by ``type_``, otherwise :py:class:`dict` will be used.
+
+    This Spec provides a conformer which renames keys based on the mapping of
+    replacement keys passed as keyword argument ``replacements`` . If a ``conformer``
+    is provided via keyword argument, that conformer will be provided a
+    :py:class:`dict` with the replacement keys as described above. Otherwise, the
+    default conformer will simply return the conformed :py:class:`dict` . Note that the
+    default conformer does **not** modify the input mapping in place.
+
+    :param tag: an optional tag for the resulting spec
+    :param replacements: a **required** :py:data:`typing.Mapping` type object which
+        indicates which keys should be renamed in the input data
+    :param retain_replaced_keys: if :py:obj:`True` , retain a copy of the replaced keys
+        in the final conformed value; default is :py:obj:`False`
+    :param overwrite_duplicate_keys: if :py:obj:`True` , duplicate keys will be
+        silently overwritten by the default conformer
+    :param type_: a :py:class:`tuple` of :py:data:`typing.Mapping` types used for the
+        initial type check validator
+    :param conformer: an optional conformer for the value; the conformer will be
+        passed a :py:class:`dict` type mapping with the replaced keys
+    :return: a Spec which validates values are mapping types and conforms the value
+        by renaming keys
+    """
+
+    @pred_to_validator(f"Value '{{value}}' is not a {type_}", complement=True)
+    def is_mapping(s: Any) -> bool:
+        return isinstance(s, type_)
+
+    validators = [is_mapping]
+
+    if replacements is None:
+        raise ValueError("Replacements mapping must be provided for rename specs")
+
+    _sentinel = object()
+
+    if not overwrite_duplicate_keys:
+        def validate_no_duplicate_keys(m: Mapping) -> Iterator[ErrorDetails]:
+            keys = set()
+            for k in m.keys():
+                new_k = m.get(k, _sentinel)
+                if new_k is _sentinel:
+                    if k in keys:
+                        yield ErrorDetails(
+                            message="Duplicate key found in rename mapping",
+                            pred=validate_no_duplicate_keys,
+                            value=k,
+                        )
+                    keys.add(k)
+                else:
+                    if isinstance(new_k, list):
+                        for ks in new_k:
+                            if ks in keys:
+                                yield ErrorDetails(
+                                    message="Duplicate key found in rename mapping",
+                                    pred=validate_no_duplicate_keys,
+                                    value=k,
+                                )
+                            keys.add(ks)
+                    else:
+                        if k in keys:
+                            yield ErrorDetails(
+                                message="Duplicate key found in rename mapping",
+                                pred=validate_no_duplicate_keys,
+                                value=k,
+                            )
+                        keys.add(k)
+                    if retain_replaced_keys:
+                        keys.add(k)
+
+        validators.append(validate_no_duplicate_keys)
+
+    def rename_conform(m: Mapping) -> Union[Mapping, Invalid]:
+        conformed = {}
+        for k, v in m.items():
+            new_k = m.get(k, _sentinel)
+            if new_k is _sentinel:
+                conformed[k] = v
+            else:
+                # we use a list rather than a tuple, because lists cannot be dict
+                # keys in Python (because they are mutable), but tuples can
+                if isinstance(new_k, list):
+                    for ks in new_k:
+                        conformed[ks] = v
+                else:
+                    conformed[new_k] = v
+                if retain_replaced_keys:
+                    conformed[k] = v
+
+        return conformed
+
+    return ValidatorSpec.from_validators(
+        tag or "rename",
+        is_mapping,
+        conformer=compose_conformers(rename_conform, *filter(None, (conformer,))),
+    )
+
+
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class StrFormat:
     validator: ValidatorSpec

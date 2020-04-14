@@ -25,6 +25,7 @@ from dataspec.factories import (
     num_spec,
     obj_spec,
     opt_key,
+    rename_spec,
     str_spec,
     time_spec,
     url_str_spec,
@@ -140,6 +141,7 @@ class SpecAPI:
     explain = staticmethod(_explain)
     fdef = staticmethod(_fdef)
     opt = staticmethod(opt_key)
+    rename = staticmethod(rename_spec)
 
     # Conditionally available spec factories
     if datetime_str_spec is not None:
