@@ -1171,7 +1171,7 @@ else:
         )
 
 
-def rename_spec(
+def rename_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
     tag: Optional[Tag] = None,
     replacements: Optional[Mapping[Any, Any]] = None,
     retain_replaced_keys: bool = False,
@@ -1239,6 +1239,7 @@ def rename_spec(
     _sentinel = object()
 
     if not overwrite_duplicate_keys:
+
         def validate_no_duplicate_keys(m: Mapping) -> Iterator[ErrorDetails]:
             keys = set()
             for k in m.keys():
