@@ -70,11 +70,11 @@ def any_spec(
     they are passed into this function.
 
     If the returned Spec fails to validate the input value, the
-    :py:meth:`dataspec.base.Spec.validate` method will emit a stream of
-    :py:class:`dataspec.base.ErrorDetails` from all of failing constituent Specs.
-    If any of the constituent Specs successfully validates the input value, then
-    no :py:class:`dataspec.base.ErrorDetails` will be emitted by the
-    :py:meth:`dataspec.base.Spec.validate` method.
+    :py:meth:`dataspec.Spec.validate` method will emit a stream of
+    :py:class:`dataspec.ErrorDetails` from all of failing constituent Specs. If any of
+    the constituent Specs successfully validates the input value, then no
+    :py:class:`dataspec.ErrorDetails` will be emitted by the
+    :py:meth:`dataspec.Spec.validate` method.
 
     The conformer for the returned Spec will select the conformer for the first
     contituent Spec which successfully validates the input value. If a ``conformer``
@@ -132,16 +132,15 @@ def all_spec(*preds: SpecPredicate, conformer: Optional[Conformer] = None) -> Sp
     spec predicates.
 
     For each Spec for which the input value is successfully validated, the value is
-    successively passed to the Spec's :py:meth:`dataspec.base.Spec.conform_valid`
-    method.
+    successively passed to the Spec's :py:meth:`dataspec.Spec.conform_valid` method.
 
-    The returned Spec's :py:meth:`dataspec.base.Spec.validate` method will emit
-    a stream of :py:class:`dataspec.base.ErrorDetails` from the first failing
-    constituent Spec. :py:class:`dataspec.base.ErrorDetails` emitted from Specs
-    after a failing Spec will not be emitted, because the failing Spec's
-    :py:meth:`dataspec.base.Spec.conform` would not successfully conform the value.
+    The returned Spec's :py:meth:`dataspec.Spec.validate` method will emit a stream
+    of :py:class:`dataspec.ErrorDetails`` from the first failing constituent Spec.
+    :py:class:`dataspec.ErrorDetails` emitted from Specs after a failing Spec will
+    not be emitted, because the failing Spec's :py:meth:`dataspec.Spec.conform``
+    would not successfully conform the value.
 
-    The returned Spec's :py:meth:`dataspec.base.Spec.conform` method is the composition
+    The returned Spec's :py:meth:`dataspec.Spec.conform` method is the composition
     of all of the input Spec's ``conform`` methods.
 
     :param tag: an optional tag for the resulting spec
@@ -257,7 +256,7 @@ def bytes_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
     will be raised.
 
     :param tag: an optional tag for the resulting spec
-    :param type_:  a single :py:class:`type` or tuple of :py:class:`type`s which
+    :param type_:  a single :py:class:`type` or tuple of :py:class:`type` s which
         will be used to type check input values by the resulting Spec
     :param length: if specified, the resulting Spec will validate that bytes are
         exactly ``length`` bytes long by :py:func:`len`
@@ -347,7 +346,7 @@ def default_spec(
 
     The returned Spec is equivalent to the following Spec:
 
-        `s.any(spec, s.every(conformer=lambda _: default)`
+        ``s.any(spec, s.every(conformer=lambda _: default))``
 
     This Spec **will allow any value to pass**, but will conform to the given default
     if the data does not satisfy the input Spec.
@@ -399,8 +398,8 @@ def _make_datetime_spec_factory(  # noqa: MC0001
     """
 
     aware_docstring_blurb = (
-        """If ``is_aware`` is :py:obj:`True`, the resulting Spec will validate that input
-    values are timezone aware. If ``is_aware`` is :py:obj:`False`, the resulting Spec
+        """If ``is_aware`` is :py:obj:`True` , the resulting Spec will validate that input
+    values are timezone aware. If ``is_aware`` is :py:obj:`False` , the resulting Spec
     will validate that inpute values are naive. If unspecified, the resulting Spec
     will not consider whether the input value is naive or aware."""
         if type_ is not date
@@ -411,7 +410,7 @@ def _make_datetime_spec_factory(  # noqa: MC0001
     format_docstring_blurb = (
         f"""If the
     :py:class:`datetime.datetime` object parsed from the ``format_`` string contains
-    a portion not available in :py:class:`datetime.{type_.__name__}, then the
+    a portion not available in :py:class:`datetime.{type_.__name__}` , then the
     validator will emit an error at runtime."""
         if type_ is not datetime
         else ""
@@ -440,10 +439,12 @@ def _make_datetime_spec_factory(  # noqa: MC0001
         validations
     :param before: if specified, the input value must come before this date or time
     :param after: if specified, the input value must come after this date or time
-    :param is_aware: if :py:obj:`True`, validate that input objects are timezone
-        aware; if :py:obj:`False`, validate that input objects are naive; if
+    :param is_aware: if :py:obj:`True` , validate that input objects are timezone
+        aware; if :py:obj:`False` , validate that input objects are naive; if
         :py:obj:`None`, do not consider whether the input value is naive or aware
-    :param conformer: an optional conformer for the value
+    :param conformer: an optional conformer for the value; if the ``format_`` parameter
+        is supplied, the conformer will be passed a :py:class:`datetime.{type_.__name__}`
+        value, rather than a string
     :return: a Spec which validates :py:class:`datetime.{type_.__name__}` types
     """
 
@@ -735,11 +736,11 @@ def _obj_attr_validator(  # pylint: disable=too-many-arguments
     :param in_attr: if ``in_attr`` is any value other than ``in_attr_ignore``,
         create a validator function which checks that an object attribute matches one
         of the values of this set
-    :param exact_attr_ignore: the value of ``exact_attr` which indicates it should be
+    :param exact_attr_ignore: the value of ``exact_attr`` which indicates it should be
         ignored as a rule
-    :param regex_attr_ignore: the value of ``regex_attr` which indicates it should be
+    :param regex_attr_ignore: the value of ``regex_attr`` which indicates it should be
         ignored as a rule
-    :param in_attr_ignore: the value of ``in_attr` which indicates it should be
+    :param in_attr_ignore: the value of ``in_attr`` which indicates it should be
         ignored as a rule
     :param disallowed_attrs_regex: if specified, a set of attributes for which creating
         a regex rule should be disallowed
@@ -822,10 +823,10 @@ def email_spec(
 
      * ``domain`` accepts any value (including :py:obj:`None`) and checks for an
        exact match of the keyword argument value
-     * ``domain_in`` takes a :py:class:``set`` or :py:class:``frozenset`` and
+     * ``domain_in`` takes a :py:class:`set` or :py:class:`frozenset` and
        validates that the `domain`` field is an exact match with one of the
        elements of the set
-     * ``domain_regex`` takes a :py:class:``str``, creates a Regex pattern from
+     * ``domain_regex`` takes a :py:class:`str`, creates a Regex pattern from
        that string, and validates that ``domain`` is a match (by
        :py:func:`re.fullmatch`) with the given pattern
 
@@ -838,7 +839,7 @@ def email_spec(
     a field will produce a :py:exc:`ValueError`.
 
     Providing a keyword argument for a non-existent field of
-    :py:class:`urllib.parse.ParseResult` will produce a :py:exc:`ValueError`.
+    :py:class:`email.headerregistry.Address` will produce a :py:exc:`ValueError`.
 
     :param tag: an optional tag for the resulting spec
     :param username: if specified, require an exact match for ``username``
@@ -951,7 +952,7 @@ def num_spec(
     less than ``min_``, a :py:exc:`ValueError` will be raised.
 
     :param tag: an optional tag for the resulting spec
-    :param type_: a single :py:class:`type` or tuple of :py:class:`type`s which
+    :param type_: a single :py:class:`type` or tuple of :py:class:`type` s which
         will be used to type check input values by the resulting Spec
     :param min_: if specified, the resulting Spec will validate that numeric values
         are not less than ``min_`` (as by ``<``)
@@ -1004,7 +1005,7 @@ def obj_spec(
 
 
 def opt_key(k: T) -> OptionalKey:
-    """Return `k` wrapped in a marker object indicating that the key is optional in
+    """Return ``k`` wrapped in a marker object indicating that the key is optional in
     associative specs."""
     return OptionalKey(k)
 
@@ -1070,9 +1071,8 @@ else:
             digits)
         :param is_valid: if True and the input number can be successfully parsed,
             validate that the number is a valid number (it is an an assigned exchange)
-        :param conformer: an optional conformer for the value; if one is not provided
-            a default conformer will be supplied which conforms the input telephone
-            number into E.164 format
+        :param conformer: an optional conformer for the value; the conformer will be
+            passed a :py:class:`phonenumbers.PhoneNumber` object, rather than a string
         :return: a Spec which validates strings containing telephone numbers
         """
 
@@ -1175,7 +1175,7 @@ def register_str_format_spec(
     name: str, validate: ValidatorSpec, conformer: Optional[Conformer] = None
 ) -> None:  # pragma: no cover
     """Register a new String format, which will be checked by the ValidatorSpec
-    `validate`. A conformer can be supplied for the string format which will
+    ``validate``. A conformer can be supplied for the string format which will
     be applied if desired, but may otherwise be ignored."""
     with _STR_FORMAT_LOCK:
         _STR_FORMATS[name] = StrFormat(validate, conformer=conformer)
@@ -1302,9 +1302,9 @@ def str_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
     raised.
 
     String format Specs may be registered using the function
-    :py:func:`dataspec.factories.register_str_format_spec`. Alternatively, a string
-    format validator function may be registered using the decorator
-    :py:func:`dataspec.factories.register_str_format`. String formats may include a
+    :py:func:`dataspec.register_str_format_spec``. Alternatively, a string format
+    validator function may be registered using the decorator
+    :py:func:`dataspec.register_str_format``. String formats may include a
     default conformer which will be applied for ``conform_format`` usages of the
     format.
 
@@ -1315,7 +1315,7 @@ def str_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
        date and time stamp
      * `iso-time` (Python 3.7+) validates that a string contains a valid ISO 8601
        time string
-     * `uuid` validates that a string contains a valid UUID
+     * ``uuid`` validates that a string contains a valid UUID
 
     :param tag: an optional tag for the resulting spec
     :param length: if specified, the resulting Spec will validate that strings are

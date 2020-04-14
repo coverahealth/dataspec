@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Add `s.dict_tag` as a convenience factory for building mapping specs for which
   the value spec tags are derived automatically from the corresponding dict keys (#52)
+- Add documentation built using Sphinx and hosted on ReadTheDocs (#9)
 
 ## [v0.2.5] - 2020-04-10
 ### Added

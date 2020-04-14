@@ -44,7 +44,7 @@ except ImportError:
 
 
 def _explain(spec: Spec, v) -> Optional[ValidationError]:  # pragma: no cover
-    """Return a ValidationError instance containing all of the errors validating `v`, if
+    """Return a ValidationError instance containing all of the errors validating ``v``, if
     there were any; return None otherwise."""
     try:
         spec.validate_ex(v)
@@ -59,7 +59,7 @@ def _fdef(
     kwargpreds: Optional[Mapping[str, SpecPredicate]] = None,
     retpred: Optional[SpecPredicate] = None,
 ):
-    """Wrap a function `f` and validate its arguments, keyword arguments, and return
+    """Wrap a function ``f`` and validate its arguments, keyword arguments, and return
     value with Specs, if any are given."""
     argspecs = s(argpreds) if argpreds else None
     kwargspecs = s(kwargpreds) if kwargpreds else None
@@ -99,6 +99,8 @@ class SpecAPI:
         self, *args: Union[Tag, SpecPredicate], conformer: Optional[Conformer] = None
     ) -> Spec:
         return make_spec(*args, conformer=conformer)
+
+    __call__.__doc__ = make_spec.__doc__
 
     # Spec factories
     any = staticmethod(any_spec)
