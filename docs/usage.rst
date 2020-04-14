@@ -99,6 +99,10 @@ by simply passing a Python type directly to the ``s`` constructor:
    spec.is_valid("a string")  # True
    spec.is_valid(3)           # False
 
+.. note::
+
+   ``s(None)`` is a shortcut for ``s(type(None))`` .
+
 .. _factories_usage:
 
 Factories

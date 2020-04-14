@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `s.rename` as a spec factory for validating that values are mapping types and
   providing a default conformer to rename keys (#60)
 
+### Fixed
+- Fixed a bug where `s(None)` is not a valid alias for `s(type(None))` (#61)
+
 ## [v0.2.5] - 2020-04-10
 ### Added
 - Add `SpecPredicate` and `tag_maybe` to the public interface (#49)
