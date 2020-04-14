@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `s.dict_tag` as a convenience factory for building mapping specs for which
   the value spec tags are derived automatically from the corresponding dict keys (#52)
 - Add documentation built using Sphinx and hosted on ReadTheDocs (#9)
+- Add a `regex` validator to the `s.bytes` factory (#37)
 
 ### Fixed
 - Fixed a bug where `s(None)` is not a valid alias for `s(type(None))` (#61)

@@ -346,6 +346,36 @@ class TestBytesSpecValidation:
         def test_is_not_maxlength(self, maxlength_spec: Spec, v):
             assert not maxlength_spec.is_valid(v)
 
+    class TestRegexSpec:
+        @pytest.fixture(params=(b"\d{5}(-\d{4})?", re.compile(b"\d{5}(-\d{4})?")))
+        def zipcode_spec(self, request) -> Spec:
+            return s.bytes(regex=request.param)
+
+        @pytest.mark.parametrize(
+            "v", [b"10017", b"10017-3332", b"37779", b"37779-2770", b"00000"]
+        )
+        def test_is_zipcode(self, zipcode_spec: Spec, v):
+            assert zipcode_spec.is_valid(v)
+
+        @pytest.mark.parametrize(
+            "v",
+            [
+                None,
+                25,
+                3.14,
+                [],
+                set(),
+                "abcdef",
+                "abcdefg",
+                "100017",
+                "10017-383",
+                b"100017",
+                b"10017-383",
+            ],
+        )
+        def test_is_not_zipcode(self, zipcode_spec: Spec, v):
+            assert not zipcode_spec.is_valid(v)
+
     def test_minlength_and_maxlength_agreement(self):
         s.bytes(minlength=10, maxlength=10)
         s.bytes(minlength=8, maxlength=10)

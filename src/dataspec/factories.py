@@ -235,6 +235,7 @@ def bytes_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
     length: Optional[int] = None,
     minlength: Optional[int] = None,
     maxlength: Optional[int] = None,
+    regex: Union[Pattern, bytes, None] = None,
     conformer: Optional[Conformer] = None,
 ) -> Spec:
     """
@@ -255,6 +256,11 @@ def bytes_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
     be raised. If any length value is not an :py:class:`int` a :py:exc:`TypeError`
     will be raised.
 
+    If ``regex`` is specified and is a :py:class:`bytes`, a Regex pattern will be
+    created by :py:func:`re.compile`. If ``regex`` is specified and is a
+    :py:obj:`typing.Pattern`, the supplied pattern will be used. In both cases, the
+    :py:func:`re.fullmatch` will be used to validate input strings.
+
     :param tag: an optional tag for the resulting spec
     :param type_:  a single :py:class:`type` or tuple of :py:class:`type` s which
         will be used to type check input values by the resulting Spec
@@ -264,6 +270,8 @@ def bytes_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
         not fewer than ``minlength`` bytes long by :py:func:`len`
     :param maxlength: if specified, the resulting Spec will validate that bytes are
         not longer than ``maxlength`` bytes long by :py:func:`len`
+    :param regex: if specified, the resulting Spec will validate that strings match
+        the ``regex`` pattern using :py:func:`re.fullmatch`
     :param conformer: an optional conformer for the value
     :return: a Spec which validates bytes and bytearrays
     """
@@ -329,6 +337,17 @@ def bytes_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
             raise ValueError(
                 "Cannot define a spec with minlength greater than maxlength"
             )
+
+    if regex is not None:
+        _pattern = regex if isinstance(regex, Pattern) else re.compile(regex)
+
+        @pred_to_validator(
+            "Bytes '{value}' does match regex '{regex}'", complement=True, regex=regex
+        )
+        def bytes_matches_regex(s: str) -> bool:
+            return bool(_pattern.fullmatch(s))
+
+        validators.append(bytes_matches_regex)
 
     return ValidatorSpec.from_validators(
         tag or "bytes", *validators, conformer=conformer
