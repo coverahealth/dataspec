@@ -1187,10 +1187,12 @@ def rename_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
     argument ``replacements``. The keys for this mapping are keys from the input value
     and the associated value is the intended replacement value. If the value is a
     :py:class:`list` , then all values of the list will be set to the value of the
-    input value associated with the key being replaced. If a key appears in the
-    ``replacements`` mapping but does not appear in the input value being validated,
-    no error will be raised. To validate the map, this Spec should be chained with
-    a standard mapping spec via :py:meth:`dataspec.SpecAPI.all` .
+    input value associated with the key being replaced. Providing an empty list for
+    a key will delete that key from the input mapping if ``retain_replaced_keys`` is
+    :py:obj:`False` . If a key appears in the ``replacements`` mapping but does not
+    appear in the input value being validated, no error will be raised. To validate the
+    map, this Spec should be chained with a standard mapping spec via
+    :py:meth:`dataspec.SpecAPI.all` .
 
     If ``retain_replaced_keys`` keyword argument is :py:obj:`True` , the replaced keys
     will be included in the conformed mapping. Otherwise, replace keys will be
