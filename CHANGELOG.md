@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the value spec tags are derived automatically from the corresponding dict keys (#52)
 - Add documentation built using Sphinx and hosted on ReadTheDocs (#9)
 - Add a `regex` validator to the `s.bytes` factory (#37)
+- Added `Spec.compose_conformer` to allow composition of new conformers with existing
+  conformers (#51)
+
+### Changed
+- **Breaking** The `Spec.conform_valid` method has been removed and replaced with
+  `Spec.conform`. `Spec.conform` no longer attempts to validate data before conforming
+  it, since that should have been done by the caller. (#51)
 
 ### Fixed
 - Fixed a bug where `s(None)` is not a valid alias for `s(type(None))` (#61)

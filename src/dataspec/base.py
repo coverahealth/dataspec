@@ -137,7 +137,7 @@ class Spec(ABC):
     """
     The abstract base class of all Specs.
 
-    Any Spec returned from :py:data:`dataspec.s` will conform to this interface.
+    All Specs returned by :py:data:`dataspec.s` conform to this interface.
     """
 
     @property
@@ -150,39 +150,43 @@ class Spec(ABC):
         """
         raise NotImplementedError
 
-    @property
-    @abstractmethod
-    def _conformer(self) -> Optional[Conformer]:  # pragma: no cover
-        """Return the custom conformer for this Spec."""
-        raise NotImplementedError
-
-    @property
-    def conformer(self) -> Conformer:
-        """Return the conformer attached to this Spec."""
-        return self._conformer or self._default_conform
-
     @abstractmethod
     def validate(self, v: Any) -> Iterator[ErrorDetails]:  # pragma: no cover
         """
-        Validate the value ``v`` against the Spec.
+        Validate the value ``v`` against the Spec, yielding successive Spec failures as
+        :py:class:`dataspec.ErrorDetails` instances, if any.
 
-        Yields an iterable of Spec failures, if any.
+        By definition, if ``next(spec.validate(v))`` raises ``StopIteration``, the
+        first time it is called, the value is considered valid according to the Spec.
+
+        :param v: a value to validate
+        :return: an iterator of Spec failures as :py:class:`dataspec.ErrorDetails`
+            instances, if any
         """
         raise NotImplementedError
 
-    def validate_ex(self, v: Any):
+    def validate_ex(self, v: Any) -> None:
         """
-        Validate the value ``v`` against the Spec.
+        Validate the value ``v`` against the Spec, throwing a
+        :py:class:`dataspec.ValidationError` containing a list of all of the Spec
+        failures for ``v`` , if any. Returns :py:obj:`None` otherwise.
 
-        Throws a ``ValidationError`` with a list of Spec failures, if any.
+        :param v: a value to validate
+        :return: :py:obj:`None`
         """
         errors = list(self.validate(v))
         if errors:
             raise ValidationError(errors)
 
     def is_valid(self, v: Any) -> bool:
-        """Returns True if ``v`` is valid according to the Spec, otherwise returns
-        False."""
+        """
+        Returns :py:obj:`True` if ``v`` is valid according to the Spec, otherwise
+        returns :py:obj:`False` .
+
+        :param v: a value to validate
+        :return: :py:obj:`True` if the value is valid according to the Spec, otherwise
+            :py:obj:`False`
+        """
         try:
             next(self.validate(v))
         except StopIteration:
@@ -190,37 +194,87 @@ class Spec(ABC):
         else:
             return False
 
-    def _default_conform(self, v):
-        """
-        Default conformer for the Spec.
-
-        If no custom conformer is specified, this conformer will be invoked.
-        """
-        return v
-
-    def conform_valid(self, v):
-        """
-        Conform ``v`` to the Spec without checking if v is valid first and return the
-        possibly conformed value or ``INVALID`` if the value cannot be conformed.
-
-        This function should be used only if ``v`` has already been check for validity.
-        """
-        return self.conformer(v)
+    @property
+    def conformer(self) -> Optional[Conformer]:
+        """Return the custom conformer attached to this Spec, if one is defined."""
+        return None
 
     def conform(self, v: Any):
-        """Conform ``v`` to the Spec, first checking if v is valid, and return the
-        possibly conformed value or ``INVALID`` if the value cannot be conformed."""
+        """
+        Conform ``v`` to the Spec, returning the possibly conformed value or an
+        instance of :py:class:`dataspec.Invalid` if the value cannot be conformed.
+
+        :param v: a *validated* value to conform
+        :return: a conformed value or a :py:class:`dataspec.Invalid` instance if the
+            input value could not be conformed
+        """
         if self.is_valid(v):
-            return self.conform_valid(v)
+            if self.conformer is None:
+                return v
+            try:
+                return self.conformer(v)  # pylint: disable=not-callable
+            except Exception:
+                return INVALID
         else:
             return INVALID
 
-    def with_conformer(self, conformer: Conformer) -> "Spec":
-        """Return a new Spec instance with the new conformer."""
+    def compose_conformer(self, conformer: Conformer) -> "Spec":
+        """
+        Return a new Spec instance with a new conformer which is the composition of the
+        ``conformer`` and the current conformer for this Spec instance.
+
+        If the current Spec instance has a custom conformer, this is equivalent to
+        calling ``spec.with_conformer(lambda v: new_conformer(spec.conformer(v)))`` .
+        If the current Spec instance has no custom conformer, this is equivalent to
+        calling :py:meth:`dataspec.Spec.with_conformer` with ``conformer`` .
+
+        To completely replace the conformer for this Spec instance, use
+        :py:meth:`dataspec.Spec.with_conformer` .
+
+        This method does not modify the current Spec instance.
+
+        :param conformer: a conformer to compose with the conformer of the current
+            Spec instance
+        :return: a copy of the current Spec instance with the new composed conformer
+        """
+        existing_conformer = self.conformer
+
+        if existing_conformer is None:
+            return self.with_conformer(conformer)
+
+        def conform_spec(v: T) -> Union[V, Invalid]:
+            assert existing_conformer is not None
+            return conformer(existing_conformer(v))  # pylint: disable=not-callable
+
+        return self.with_conformer(conform_spec)
+
+    def with_conformer(self, conformer: Optional[Conformer]) -> "Spec":
+        """
+        Return a new Spec instance with the new conformer, replacing any custom
+        conformers.
+
+        If ``conformer`` is :py:obj:`None` , the returned Spec will have no custom
+        conformer.
+
+        To return a copy of the current Spec with a composition of the current
+        Spec instance, use :py:meth:`dataspec.Spec.compose_conformer` .
+
+        :param conformer: a conformer to replace the conformer of the current Spec
+            instance or :py:obj:`None` to remove the conformer associated with this
+
+        :return: a copy of the current Spec instance with new conformer
+        """
         return attr.evolve(self, conformer=conformer)
 
     def with_tag(self, tag: Tag) -> "Spec":
-        """Return a new Spec instance with the new tag applied."""
+        """
+        Return a new Spec instance with the new tag applied.
+
+        This method does not modify the current Spec instance.
+
+        :param tag: a new tag to use for the new Spec
+        :return: a copy of the current Spec instance with the new tag applied
+        """
         return attr.evolve(self, tag=tag)
 
 
@@ -232,7 +286,7 @@ class ValidatorSpec(Spec):
 
     tag: Tag
     _validate: ValidatorFn
-    _conformer: Optional[Conformer] = None
+    conformer: Optional[Conformer] = None
 
     def validate(self, v) -> Iterator[ErrorDetails]:
         try:
@@ -291,7 +345,7 @@ class PredicateSpec(Spec):
 
     tag: Tag
     _pred: PredicateFn
-    _conformer: Optional[Conformer] = None
+    conformer: Optional[Conformer] = None
 
     def validate(self, v) -> Iterator[ErrorDetails]:
         try:
@@ -312,7 +366,7 @@ class PredicateSpec(Spec):
 class CollSpec(Spec):
     tag: Tag
     _spec: Spec
-    _conformer: Optional[Conformer] = None
+    conformer: Optional[Conformer] = None
     _out_type: Optional[Type] = None
     _validate_coll: Optional[ValidatorSpec] = None
 
@@ -427,10 +481,13 @@ class CollSpec(Spec):
         if validators:
             validate_coll = ValidatorSpec.from_validators("coll", *validators)
 
+        def conform_coll(v: Iterable) -> Iterable:
+            return (out_type or type(v))(spec.conform(e) for e in v)  # type: ignore[call-arg]
+
         return cls(
             tag or "coll",
             spec=spec,
-            conformer=conformer,
+            conformer=compose_conformers(conform_coll, *filter(None, (conformer,))),
             out_type=out_type,
             validate_coll=validate_coll,
         )
@@ -441,9 +498,6 @@ class CollSpec(Spec):
 
         for i, e in enumerate(v):
             yield from _enrich_errors(self._spec.validate(e), self.tag, i)
-
-    def _default_conform(self, v):
-        return (self._out_type or type(v))(self._spec.conform(e) for e in v)
 
 
 # In Python 3.6, you cannot inherit directly from Generic with slotted classes:
@@ -458,14 +512,14 @@ class DictSpec(Spec):
     tag: Tag
     _reqkeyspecs: Mapping[Any, Spec] = attr.ib(factory=dict)
     _optkeyspecs: Mapping[Any, Spec] = attr.ib(factory=dict)
-    _conformer: Optional[Conformer] = None
+    conformer: Optional[Conformer] = None
 
     @classmethod
     def from_val(
         cls,
         tag: Optional[Tag],
         kvspec: Mapping[str, SpecPredicate],
-        conformer: Conformer = None,
+        conformer: Optional[Conformer] = None,
     ):
         reqkeys = {}
         optkeys: MutableMapping[Any, Spec] = {}
@@ -475,8 +529,22 @@ class DictSpec(Spec):
             else:
                 reqkeys[k] = make_spec(v)
 
+        def conform_mapping(d: Mapping) -> Mapping:
+            conformed_d = {}
+            for k, spec in reqkeys.items():
+                conformed_d[k] = spec.conform(d[k])
+
+            for k, spec in optkeys.items():
+                if k in d:
+                    conformed_d[k] = spec.conform(d[k])
+
+            return conformed_d
+
         return cls(
-            tag or "map", reqkeyspecs=reqkeys, optkeyspecs=optkeys, conformer=conformer
+            tag or "map",
+            reqkeyspecs=reqkeys,
+            optkeyspecs=optkeys,
+            conformer=compose_conformers(conform_mapping, *filter(None, (conformer,))),
         )
 
     def validate(self, d) -> Iterator[ErrorDetails]:  # pylint: disable=arguments-differ
@@ -505,19 +573,20 @@ class DictSpec(Spec):
             if k in d:
                 yield from _enrich_errors(vspec.validate(d[k]), self.tag, k)
 
-    def _default_conform(self, d):  # pylint: disable=arguments-differ
-        conformed_d = {}
-        for k, spec in self._reqkeyspecs.items():
-            conformed_d[k] = spec.conform(d[k])
-
-        for k, spec in self._optkeyspecs.items():
-            if k in d:
-                conformed_d[k] = spec.conform(d[k])
-
-        return conformed_d
-
 
 class ObjectSpec(DictSpec):
+    @classmethod
+    def from_val(
+        cls,
+        tag: Optional[Tag],
+        kvspec: Mapping[str, SpecPredicate],
+        conformer: Conformer = None,
+    ):
+        def conform_object(_):
+            raise TypeError("Cannot use a default conformer for an Object")
+
+        return super().from_val(tag, kvspec).with_conformer(conformer or conform_object)
+
     def validate(self, o) -> Iterator[ErrorDetails]:  # pylint: disable=arguments-differ
         for k, vspec in self._reqkeyspecs.items():
             if hasattr(o, k):
@@ -534,9 +603,6 @@ class ObjectSpec(DictSpec):
         for k, vspec in self._optkeyspecs.items():
             if hasattr(o, k):
                 yield from _enrich_errors(vspec.validate(getattr(o, k)), self.tag, k)
-
-    def _default_conform(self, o):  # pylint: disable=arguments-differ
-        raise TypeError("Cannot use a default conformer for an Object")
 
 
 def _enum_conformer(e: EnumMeta) -> Conformer:
@@ -559,7 +625,7 @@ def _enum_conformer(e: EnumMeta) -> Conformer:
 class SetSpec(Spec):
     tag: Tag
     _values: Union[Set, FrozenSet]
-    _conformer: Optional[Conformer] = None
+    conformer: Optional[Conformer] = None
 
     def validate(self, v) -> Iterator[ErrorDetails]:
         if v not in self._values:
@@ -570,13 +636,25 @@ class SetSpec(Spec):
                 via=[self.tag],
             )
 
+    @classmethod
+    def from_enum(
+        cls, tag: Optional[Tag], pred: EnumMeta, conformer: Optional[Conformer] = None
+    ):
+        return cls(
+            tag or pred.__name__,
+            frozenset(chain.from_iterable([mem, mem.name, mem.value] for mem in pred)),  # type: ignore[var-annotated]
+            conformer=compose_conformers(
+                _enum_conformer(pred), *filter(None, (conformer,)),
+            ),
+        )
+
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class TupleSpec(Spec):
     tag: Tag
     _pred: Tuple[SpecPredicate, ...]
     _specs: Tuple[Spec, ...]
-    _conformer: Optional[Conformer] = None
+    conformer: Optional[Conformer] = None
     _namedtuple: Optional[Type[NamedTuple]] = None
 
     @classmethod
@@ -596,11 +674,16 @@ class TupleSpec(Spec):
         else:
             namedtuple_type = None  # type: ignore
 
+        def conform_tuple(v) -> Union[Tuple, NamedTuple]:
+            return ((namedtuple_type and namedtuple_type._make) or tuple)(
+                spec.conform(v) for spec, v in zip(specs, v)
+            )
+
         return cls(
             tag or "tuple",
             pred=pred,
             specs=specs,
-            conformer=conformer,
+            conformer=compose_conformers(conform_tuple, *filter(None, (conformer,))),
             namedtuple=namedtuple_type,  # type: ignore
         )
 
@@ -621,11 +704,6 @@ class TupleSpec(Spec):
             yield ErrorDetails(
                 message=f"Value is not a tuple type", pred=self, value=t, via=[self.tag]
             )
-
-    def _default_conform(self, v):
-        return ((self._namedtuple and self._namedtuple._make) or tuple)(
-            spec.conform(v) for spec, v in zip(self._specs, v)
-        )
 
 
 def _enrich_errors(
@@ -831,11 +909,7 @@ def make_spec(  # pylint: disable=inconsistent-return-statements  # noqa: MC0001
     if isinstance(pred, (frozenset, set)):
         return SetSpec(tag or "set", pred, conformer=conformer)
     elif isinstance(pred, EnumMeta):
-        return SetSpec(
-            tag or pred.__name__,
-            frozenset(chain.from_iterable([mem, mem.name, mem.value] for mem in pred)),
-            conformer=conformer or _enum_conformer(pred),
-        )
+        return SetSpec.from_enum(tag, pred, conformer=conformer)
     elif isinstance(pred, tuple):
         return TupleSpec.from_val(tag, pred, conformer=conformer)
     elif isinstance(pred, list):

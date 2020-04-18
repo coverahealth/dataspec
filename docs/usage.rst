@@ -484,5 +484,5 @@ keyword argument. This function will be called any time you call
 
 Most common Spec workflows will involve validating that your data is, in fact, valid
 using :py:meth:`dataspec.Spec.is_valid` or :py:meth:`dataspec.Spec.validate` for richer
-error details and then calling :py:meth:`dataspec.Spec.conform_valid` if it is valid
-or dealing with the error if not.
+error details and then calling :py:meth:`dataspec.Spec.conform` if it is valid or
+dealing with the error if not.

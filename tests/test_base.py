@@ -536,8 +536,8 @@ class TestEnumSetSpec:
         assert INVALID is enum_spec.conform(None)
 
         # Testing the last branch of the conformer
-        assert INVALID is enum_spec.conform_valid("Maybe")
-        assert INVALID is enum_spec.conform_valid(None)
+        assert INVALID is enum_spec.conform("Maybe")
+        assert INVALID is enum_spec.conform(None)
 
 
 class TestTupleSpecValidation:
