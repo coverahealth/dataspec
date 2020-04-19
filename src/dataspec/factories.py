@@ -113,7 +113,7 @@ def any_spec(
             if spec_errors:
                 continue
 
-            conformed = spec.conform(e)
+            conformed = spec.conform_valid(e)
             assert conformed is not INVALID
             if conformer is not None:
                 conformed = conformer(conformed)
@@ -132,7 +132,7 @@ def all_spec(*preds: SpecPredicate, conformer: Optional[Conformer] = None) -> Sp
     spec predicates.
 
     For each Spec for which the input value is successfully validated, the value is
-    successively passed to the Spec's :py:meth:`dataspec.Spec.conform` method.
+    successively passed to the Spec's :py:meth:`dataspec.Spec.conform_valid` method.
 
     The returned Spec's :py:meth:`dataspec.Spec.validate` method will emit a stream
     of :py:class:`dataspec.ErrorDetails`` from the first failing constituent Spec.
@@ -162,7 +162,7 @@ def all_spec(*preds: SpecPredicate, conformer: Optional[Conformer] = None) -> Sp
             if errors:
                 yield from errors
                 return
-            e = spec.conform(e)
+            e = spec.conform_valid(e)
 
     return ValidatorSpec(
         tag or "all",

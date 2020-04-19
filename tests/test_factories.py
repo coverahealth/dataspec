@@ -115,7 +115,7 @@ class TestAnySpecConformation:
     )
     def test_conformation_failure(self, spec: Spec, v):
         assert INVALID is spec.conform(v)
-        assert INVALID is spec.conform(v)
+        assert INVALID is spec.conform_valid(v)
 
     @pytest.fixture
     def tag_spec(self) -> Spec:
@@ -142,7 +142,7 @@ class TestAnySpecConformation:
     )
     def test_tagged_conformation_failure(self, tag_spec: Spec, v):
         assert INVALID is tag_spec.conform(v)
-        assert INVALID is tag_spec.conform(v)
+        assert INVALID is tag_spec.conform_valid(v)
 
 
 class TestAnySpecWithOuterConformation:
@@ -165,7 +165,7 @@ class TestAnySpecWithOuterConformation:
     )
     def test_conformation_failure(self, spec: Spec, v):
         assert INVALID is spec.conform(v)
-        assert INVALID is spec.conform(v)
+        assert INVALID is spec.conform_valid(v)
 
     @pytest.fixture
     def tag_spec(self) -> Spec:
@@ -193,7 +193,7 @@ class TestAnySpecWithOuterConformation:
     )
     def test_tagged_conformation_failure(self, tag_spec: Spec, v):
         assert INVALID is tag_spec.conform(v)
-        assert INVALID is tag_spec.conform(v)
+        assert INVALID is tag_spec.conform_valid(v)
 
 
 @pytest.mark.parametrize(
@@ -1784,3 +1784,4 @@ class TestUUIDSpecValidation:
         )
         def test_uuid_validation_failure(self, uuid_spec: Spec, v):
             assert not uuid_spec.is_valid(v)
+            assert INVALID is uuid_spec.conform(v)

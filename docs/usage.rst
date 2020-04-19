@@ -466,23 +466,33 @@ Conformation
 
 Data validation is only one half of the value proposition for using ``dataspec``. After
 you've validated that data is valid, the next step is to normalize it into a canonical
-format. Conformation is the component of ``dataspec`` that helps you normalize data.
+format. Conformers are functions of one argument that can accept a validated value and
+emit a canonical representation of that value. Conformation is the component of
+``dataspec`` that helps you normalize data.
 
 Every Spec value comes with a default conformer. For most Specs, that conformer simply
-returns the value it was passed, though a few builtin Specs do provide a richer or
+returns the value it was passed, though a few builtin Specs do provide a richer,
 canonicalized version of the input data. For example, :py:meth:`dataspec.SpecAPI.date`
 conforms a date (possibly from a ``strptime`` format string) into a ``date`` object.
-Note that **no** builtin Spec conformers ever modify the data they are passed.
+Note that **none** of the builtin Spec conformers ever modify the data they are passed.
 ``dataspec`` conformers always create new data structures and return the conformed
 values. Custom conformers can modify their data in-flight, but that is not recommended
 since it will be harder reason about failures (in particular, if a mutating conformer
-appeared in the middle of ``s.all(...)`` Spec and a later Spec errored out.
-
-When you create Specs, you can always provide a conformer using the ``conformer``
-keyword argument. This function will be called any time you call
-:py:meth:`dataspec.Spec.conform` on your Spec or any Spec your Spec is a part of.
+appeared in the middle of ``s.all(...)`` Spec and a later Spec produced an error.
 
 Most common Spec workflows will involve validating that your data is, in fact, valid
 using :py:meth:`dataspec.Spec.is_valid` or :py:meth:`dataspec.Spec.validate` for richer
-error details and then calling :py:meth:`dataspec.Spec.conform` if it is valid or
-dealing with the error if not.
+error details and then calling :py:meth:`dataspec.Spec.conform_valid` if it is valid
+or dealing with the error if not.
+
+User Provided Conformers
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+When you create Specs, you can always provide a conformer using the ``conformer``
+keyword argument. This function will be called any time you call
+:py:meth:`dataspec.Spec.conform` on your Spec or any Spec your Spec is a part of. The
+``conformer`` keyword argument for :py:func:`dataspec.s` and other builtin factories
+will always apply your conformer as by :py:meth:`dataspec.Spec.compose_conformer` ,
+rather than replacing the default conformer. To have your conformer *completely*
+replace the default conformer (if one is provided), you can use the
+:py:meth:`dataspec.Spec.with_conformer` method on the returned Spec.

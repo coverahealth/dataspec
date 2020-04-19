@@ -204,18 +204,31 @@ class Spec(ABC):
         Conform ``v`` to the Spec, returning the possibly conformed value or an
         instance of :py:class:`dataspec.Invalid` if the value cannot be conformed.
 
-        :param v: a *validated* value to conform
+        :param v: a value to conform
         :return: a conformed value or a :py:class:`dataspec.Invalid` instance if the
             input value could not be conformed
         """
         if self.is_valid(v):
-            if self.conformer is None:
-                return v
-            try:
-                return self.conformer(v)  # pylint: disable=not-callable
-            except Exception:
-                return INVALID
+            return self.conform_valid(v)
         else:
+            return INVALID
+
+    def conform_valid(self, v: Any):
+        """
+        Conform ``v`` to the Spec without checking if v is valid first and return the
+        possibly conformed value or ``INVALID`` if the value cannot be conformed.
+
+        This function should be used only if ``v`` has already been check for validity.
+
+        :param v: a *validated* value to conform
+        :return: a conformed value or a :py:class:`dataspec.Invalid` instance if the
+            input value could not be conformed
+        """
+        if self.conformer is None:
+            return v
+        try:
+            return self.conformer(v)  # pylint: disable=not-callable
+        except Exception:
             return INVALID
 
     def compose_conformer(self, conformer: Conformer) -> "Spec":
@@ -482,7 +495,7 @@ class CollSpec(Spec):
             validate_coll = ValidatorSpec.from_validators("coll", *validators)
 
         def conform_coll(v: Iterable) -> Iterable:
-            return (out_type or type(v))(spec.conform(e) for e in v)  # type: ignore[call-arg]
+            return (out_type or type(v))(spec.conform(e) for e in v)  # type: ignore[call-arg]  # noqa
 
         return cls(
             tag or "coll",
@@ -642,7 +655,11 @@ class SetSpec(Spec):
     ):
         return cls(
             tag or pred.__name__,
-            frozenset(chain.from_iterable([mem, mem.name, mem.value] for mem in pred)),  # type: ignore[var-annotated]
+            frozenset(
+                chain.from_iterable(
+                    [mem, mem.name, mem.value] for mem in pred  # type: ignore[var-annotated]  # noqa
+                )
+            ),
             conformer=compose_conformers(
                 _enum_conformer(pred), *filter(None, (conformer,)),
             ),
