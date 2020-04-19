@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conformers (#65)
 
 ### Changed
-- **Breaking** `Spec.with_conformer` can now replace the default conformer applied
+- **Breaking** `Spec.with_conformer` will now replace the default conformer applied
   to a Spec instance. Previously, most default conformers were applied using the
   private `Spec._default_conform` method. To emulate the previous behavior, you
   can use `Spec.compose_conformer`, which will compose your conformer after any
