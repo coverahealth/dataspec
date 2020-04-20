@@ -28,7 +28,7 @@ Types
 -----
 
 .. automodule:: dataspec
-   :members: Spec, SpecPredicate, Tag, Conformer, PredicateFn, ValidatorFn
+   :members: Spec, SpecPredicate, Tag, Conformer, IConformer, ConformerFn, PredicateFn, ValidatorFn
    :noindex:
 
 .. _spec_errors:

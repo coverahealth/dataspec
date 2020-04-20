@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   can use `Spec.compose_conformer`, which will compose your conformer after any
   existing conformers on a Spec instance and return a copy with that composition.
   (#65)
+- **Breaking** `dataspec.Conformer` is now `dataspec.ConformerFn` as a
 
 ### Fixed
 - Fixed a bug where `s(None)` is not a valid alias for `s(type(None))` (#61)

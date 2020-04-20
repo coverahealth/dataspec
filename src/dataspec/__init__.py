@@ -2,6 +2,7 @@ from dataspec.api import SpecAPI, s
 from dataspec.base import (
     INVALID,
     Conformer,
+    ConformerFn,
     ErrorDetails,
     Invalid,
     PredicateFn,
@@ -18,6 +19,7 @@ __all__ = [
     "INVALID",
     "Invalid",
     "Conformer",
+    "ConformerFn",
     "ErrorDetails",
     "PredicateFn",
     "SpecAPI",
