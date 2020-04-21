@@ -81,11 +81,26 @@ def make_conformer(f: Optional[Conformer]) -> Optional["IConformer"]:
 class IConformer(ABC):
     @abstractmethod
     def __call__(self, v, is_valid: bool = False):
-        """"""
+        """
 
-    @abstractmethod
+        :param v:
+        :param is_valid:
+        :return:
+        """
+
     def compose(self, f: Union["Conformer", ConformerFn]) -> "Conformer":
-        """"""
+        """
+
+        :param f:
+        :return:
+        """
+        new_conformer = make_conformer(f)
+
+        def wrapped_conformer(v, is_valid: bool = False):
+            assert new_conformer is not None
+            return new_conformer(self(v, is_valid=is_valid), is_valid=is_valid)
+
+        return FunctionConformer(wrapped_conformer)
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -94,15 +109,6 @@ class FunctionConformer(IConformer):
 
     def __call__(self, v, is_valid: bool = False):
         return self.f(v)
-
-    def compose(self, f: Conformer) -> IConformer:
-        new_conformer = make_conformer(f)
-        assert new_conformer is not None
-
-        def wrapped_conformer(v, is_valid: bool = False):
-            return new_conformer(self(v, is_valid=is_valid), is_valid=is_valid)
-
-        return FunctionConformer(wrapped_conformer)
 
 
 @attr.s(auto_attribs=True, slots=True)
@@ -248,7 +254,9 @@ class Spec(ABC):
             input value could not be conformed
         """
         if self.is_valid(v):
-            return self.conformer(v, is_valid=True)
+            if self.conformer is None:
+                return v
+            return self.conformer(v, is_valid=True)  # pylint: disable=not-callable
         else:
             return INVALID
 
@@ -265,7 +273,7 @@ class Spec(ABC):
         """
         if self.conformer is None:
             return v
-        return self.conformer(v, is_valid=True)
+        return self.conformer(v, is_valid=True)  # pylint: disable=not-callable
 
     def compose_conformer(self, conformer: Conformer) -> "Spec":
         """
@@ -390,7 +398,7 @@ class PredicateSpec(Spec):
 
     tag: Tag
     _pred: PredicateFn
-    conformer: Optional[IConformer] = attr.ib(converter=make_conformer)
+    conformer: Optional[IConformer] = attr.ib(converter=make_conformer)  # type: ignore[misc]
 
     def validate(self, v) -> Iterator[ErrorDetails]:
         try:
@@ -411,7 +419,7 @@ class PredicateSpec(Spec):
 class CollSpec(Spec):
     tag: Tag
     _spec: Spec
-    conformer: Optional[IConformer] = attr.ib(converter=make_conformer)
+    conformer: Optional[IConformer] = attr.ib(converter=make_conformer)  # type: ignore[misc]
     _out_type: Optional[Type] = None
     _validate_coll: Optional[ValidatorSpec] = None
 
@@ -526,13 +534,19 @@ class CollSpec(Spec):
         if validators:
             validate_coll = ValidatorSpec.from_validators("coll", *validators)
 
-        def conform_coll(v: Iterable) -> Iterable:
-            return (out_type or type(v))(spec.conform(e) for e in v)  # type: ignore[call-arg]  # noqa
+        class CollConformer(IConformer):
+            def __call__(self, v: Any, is_valid: bool = False):
+                conform = spec.conform_valid if is_valid else spec.conform
+                return (out_type or type(v))(conform(e) for e in v)  # noqa
+
+        conform_coll = CollConformer()
 
         return cls(
             tag or "coll",
             spec=spec,
-            conformer=compose_conformers(conform_coll, *filter(None, (conformer,))),
+            conformer=conform_coll.compose(conformer)
+            if conformer is not None
+            else conform_coll,
             out_type=out_type,
             validate_coll=validate_coll,
         )
@@ -557,7 +571,7 @@ class DictSpec(Spec):
     tag: Tag
     _reqkeyspecs: Mapping[Any, Spec] = attr.ib(factory=dict)
     _optkeyspecs: Mapping[Any, Spec] = attr.ib(factory=dict)
-    conformer: Optional[IConformer] = attr.ib(default=None, converter=make_conformer)
+    conformer: Optional[IConformer] = attr.ib(default=None, converter=make_conformer)  # type: ignore[misc]
 
     @classmethod
     def from_val(
@@ -574,22 +588,31 @@ class DictSpec(Spec):
             else:
                 reqkeys[k] = make_spec(v)
 
-        def conform_mapping(d: Mapping) -> Mapping:
-            conformed_d = {}
-            for k, spec in reqkeys.items():
-                conformed_d[k] = spec.conform(d[k])
+        class DictConformer(IConformer):
+            def __call__(self, d: Mapping, is_valid: bool = False) -> Mapping:
+                conformed_d = {}
+                for k, spec in reqkeys.items():
+                    conformed_d[k] = (
+                        spec.conform_valid(d[k]) if is_valid else spec.conform(d[k])
+                    )
 
-            for k, spec in optkeys.items():
-                if k in d:
-                    conformed_d[k] = spec.conform(d[k])
+                for k, spec in optkeys.items():
+                    if k in d:
+                        conformed_d[k] = (
+                            spec.conform_valid(d[k]) if is_valid else spec.conform(d[k])
+                        )
 
-            return conformed_d
+                return conformed_d
+
+        conform_mapping = DictConformer()
 
         return cls(
             tag or "map",
             reqkeyspecs=reqkeys,
             optkeyspecs=optkeys,
-            conformer=compose_conformers(conform_mapping, *filter(None, (conformer,))),
+            conformer=conform_mapping.compose(conformer)
+            if conformer is not None
+            else conform_mapping,
         )
 
     def validate(self, d) -> Iterator[ErrorDetails]:  # pylint: disable=arguments-differ
@@ -670,7 +693,7 @@ def _enum_conformer(e: EnumMeta) -> Conformer:
 class SetSpec(Spec):
     tag: Tag
     _values: Union[Set, FrozenSet]
-    conformer: Optional[IConformer] = attr.ib(converter=make_conformer)
+    conformer: Optional[IConformer] = attr.ib(converter=make_conformer)  # type: ignore[misc]
 
     def validate(self, v) -> Iterator[ErrorDetails]:
         if v not in self._values:
@@ -723,16 +746,24 @@ class TupleSpec(Spec):
         else:
             namedtuple_type = None  # type: ignore
 
-        def conform_tuple(v) -> Union[Tuple, NamedTuple]:
-            return ((namedtuple_type and namedtuple_type._make) or tuple)(
-                spec.conform(v) for spec, v in zip(specs, v)
-            )
+        class TupleConformer(IConformer):
+            def __call__(
+                self, v: Tuple, is_valid: bool = False
+            ) -> Union[Tuple, NamedTuple]:
+                return ((namedtuple_type and namedtuple_type._make) or tuple)(
+                    (spec.conform_valid(v) if is_valid else spec.conform(v))
+                    for spec, v in zip(specs, v)
+                )
+
+        conform_tuple = TupleConformer()
 
         return cls(
             tag or "tuple",
             pred=pred,
             specs=specs,
-            conformer=compose_conformers(conform_tuple, *filter(None, (conformer,))),
+            conformer=conform_tuple.compose(conformer)
+            if conformer is not None
+            else conform_tuple,
             namedtuple=namedtuple_type,  # type: ignore
         )
 
