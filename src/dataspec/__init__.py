@@ -4,6 +4,7 @@ from dataspec.base import (
     Conformer,
     ConformerFn,
     ErrorDetails,
+    IConformer,
     Invalid,
     PredicateFn,
     Spec,
@@ -17,10 +18,11 @@ from dataspec.factories import register_str_format, register_str_format_spec, ta
 
 __all__ = [
     "INVALID",
-    "Invalid",
     "Conformer",
     "ConformerFn",
     "ErrorDetails",
+    "IConformer",
+    "Invalid",
     "PredicateFn",
     "SpecAPI",
     "SpecPredicate",

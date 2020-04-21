@@ -20,7 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   can use `Spec.compose_conformer`, which will compose your conformer after any
   existing conformers on a Spec instance and return a copy with that composition.
   (#65)
-- **Breaking** `dataspec.Conformer` is now `dataspec.ConformerFn` as a
+- `dataspec.Conformer` is now the union of `dataspec.ConformerFn` (a single argument
+  function returning a value or an instance of `Invalid`) and `dataspec.IConformer`.
+  The latter is a new interface used internally allow calls to `Spec.conform_valid` to
+  propogate through nested data structure Specs. Current uses of `Conformer` should
+  remain valid. (#51)
 
 ### Fixed
 - Fixed a bug where `s(None)` is not a valid alias for `s(type(None))` (#61)
