@@ -21,12 +21,12 @@ object:
 :py:func:`dataspec.s` is a generic Spec constructor, which can be called to generate
 new Specs from a variety of sources. It is a singleton instance of
 :py:class:`dataspec.SpecAPI` and nearly all of the factory or convenience methods
-below are available as static methods on :py:func:`dataspec.s` .
+below are available as static methods on :py:func:`dataspec.s`.
 
 Specs are designed to be composed, so each of the spec types below can serve as the
 base for more complex data definitions. For collection, mapping, and tuple type Specs,
 Specs will be recursively created for child elements if they are types understood
-by :py:func:`dataspec.s` .
+by :py:func:`dataspec.s`.
 
 Specs may also optionally be created with :ref:`tags`, which are just string names
 provided in :py:class:`dataspec.ErrorDetails` objects emitted by Spec instance
@@ -101,7 +101,7 @@ by simply passing a Python type directly to the ``s`` constructor:
 
 .. note::
 
-   ``s(None)`` is a shortcut for ``s(type(None))`` .
+   ``s(None)`` is a shortcut for ``s(type(None))``.
 
 .. _factories_usage:
 
@@ -121,7 +121,7 @@ are supplied as `s.is_{type}` on ``s``.
 String Specs
 ^^^^^^^^^^^^
 
-You can create a spec which validates strings with :py:meth:`dataspec.SpecAPI.str` .
+You can create a spec which validates strings with :py:meth:`dataspec.SpecAPI.str`.
 Common string validations can be specified as keyword arguments, such as the min/max
 length or a matching regex. If you are only interested in validating that a value is
 a string without any further validations, spec features the predefined spec
@@ -208,7 +208,7 @@ Email Address and URL Specs
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 ``dataspec`` features Spec factories for validating email addresses using
-:py:meth:`dataspec.SpecAPI.email` and URLs using :py:meth:`dataspec.SpecAPI.url` .
+:py:meth:`dataspec.SpecAPI.email` and URLs using :py:meth:`dataspec.SpecAPI.url`.
 
 Email addresses are validated using Python's builtin ``email.headerregistry.Address``
 class to parse email addresses into username and domain. For each of ``username`` and
@@ -227,10 +227,10 @@ No more than one keyword filter may be supplied for either of ``username`` or
 
 URLs are validated using Python's builtin ``urllib`` module to parse URLs into their
 constituent components: ``scheme`` , ``netloc`` , ``path`` , ``params`` , ``fragment`` ,
-``username`` , ``password`` , ``hostname``, and ``port`` . URL Specs may optionally
+``username`` , ``password`` , ``hostname``, and ``port``. URL Specs may optionally
 provide a Spec for the ``dict`` created by parsing the query-string (if present) for
 the URL. Specs for each of the components of a URL allow the same filters as described
-above for email addresses. For more information, see :py:meth:`dataspec.SpecAPI.url` .
+above for email addresses. For more information, see :py:meth:`dataspec.SpecAPI.url`.
 
 .. _enumeration_specs:
 
@@ -302,7 +302,7 @@ Specs can be defined for mapping/associative types and objects. To define a spec
 mapping type, pass a dictionary of specs to ``s``. The keys should be the expected key
 value (most often a string) and the value should be the spec for values located in that
 key. If a mapping spec contains a key, the spec considers that key *required*. To
-specify an *optional* key in the spec, wrap the key in :py:meth:`dataspec.SpecAPI.opt` .
+specify an *optional* key in the spec, wrap the key in :py:meth:`dataspec.SpecAPI.opt`.
 Optional keys will be validated if they are present, but allow the map to exclude those
 keys without being considered invalid.
 
@@ -331,7 +331,7 @@ be one of ``"CA"``, ``"GA"``, or ``"NY"``.
 
    To apply the mapping Spec key as the tag of the value Spec, use
    :py:meth:`dataspec.SpecAPI.dict_tag` to construct your mapping Spec. For more
-   precise control over the value Spec tags, prefer :py:func:`dataspec.s` .
+   precise control over the value Spec tags, prefer :py:func:`dataspec.s`.
 
 Mapping specs conform input dictionaries by applying each field's conformer(s) to
 the fields of the input map to return a new dictionary. As a consequence, the value
@@ -415,7 +415,7 @@ since they occur so commonly, ``dataspec`` features a couple of utility Specs fo
 quickly defining these cases. For cases where ``None`` is a valid value, you can wrap
 your Spec with :py:meth:`dataspec.SpecAPI.nilable`. If you are dealing with strings and
 need to allow a blank value (as is often the case when handling CSVs), you can wrap
-your Spec with :py:meth:`dataspec.SpecAPI.blankable` .
+your Spec with :py:meth:`dataspec.SpecAPI.blankable`.
 
 .. code-block:: python
 
@@ -434,7 +434,7 @@ your Spec with :py:meth:`dataspec.SpecAPI.blankable` .
 In certain cases, you may be willing to accept invalid data and overwrite it with a
 default value during conformation. For such cases, you can specify a default value
 whenever the input value does not pass validation for another spec using
-:py:meth:`dataspec.SpecAPI.default` . The value supplied to the ``default`` keyword
+:py:meth:`dataspec.SpecAPI.default`. The value supplied to the ``default`` keyword
 argument will be provided by the conformer if the inner Spec does not validate.
 
 .. code-block:: python
@@ -466,23 +466,33 @@ Conformation
 
 Data validation is only one half of the value proposition for using ``dataspec``. After
 you've validated that data is valid, the next step is to normalize it into a canonical
-format. Conformation is the component of ``dataspec`` that helps you normalize data.
+format. Conformers are functions of one argument that can accept a validated value and
+emit a canonical representation of that value. Conformation is the component of
+``dataspec`` that helps you normalize data.
 
 Every Spec value comes with a default conformer. For most Specs, that conformer simply
-returns the value it was passed, though a few builtin Specs do provide a richer or
+returns the value it was passed, though a few builtin Specs do provide a richer,
 canonicalized version of the input data. For example, :py:meth:`dataspec.SpecAPI.date`
 conforms a date (possibly from a ``strptime`` format string) into a ``date`` object.
-Note that **no** builtin Spec conformers ever modify the data they are passed.
+Note that **none** of the builtin Spec conformers ever modify the data they are passed.
 ``dataspec`` conformers always create new data structures and return the conformed
 values. Custom conformers can modify their data in-flight, but that is not recommended
 since it will be harder reason about failures (in particular, if a mutating conformer
-appeared in the middle of ``s.all(...)`` Spec and a later Spec errored out.
-
-When you create Specs, you can always provide a conformer using the ``conformer``
-keyword argument. This function will be called any time you call
-:py:meth:`dataspec.Spec.conform` on your Spec or any Spec your Spec is a part of.
+appeared in the middle of ``s.all(...)`` Spec and a later Spec produced an error).
 
 Most common Spec workflows will involve validating that your data is, in fact, valid
 using :py:meth:`dataspec.Spec.is_valid` or :py:meth:`dataspec.Spec.validate` for richer
 error details and then calling :py:meth:`dataspec.Spec.conform_valid` if it is valid
 or dealing with the error if not.
+
+User Provided Conformers
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+When you create Specs, you can always provide a conformer using the ``conformer``
+keyword argument. This function will be called any time you call
+:py:meth:`dataspec.Spec.conform` on your Spec or any Spec your Spec is a part of. The
+``conformer`` keyword argument for :py:func:`dataspec.s` and other builtin factories
+will always apply your conformer as by :py:meth:`dataspec.Spec.compose_conformer` ,
+rather than replacing the default conformer. To have your conformer *completely*
+replace the default conformer (if one is provided), you can use the
+:py:meth:`dataspec.Spec.with_conformer` method on the returned Spec.

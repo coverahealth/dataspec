@@ -2,7 +2,7 @@ from typing import Iterator
 
 import pytest
 
-from dataspec import ErrorDetails, ValidationError, s
+from dataspec import INVALID, ErrorDetails, Spec, ValidationError, s
 from dataspec.base import PredicateSpec, ValidatorSpec, pred_to_validator
 
 
@@ -39,6 +39,48 @@ class TestSpecConstructor:
 
     def test_no_signature_for_builtins(self):
         s.all(s.str(), str.istitle)
+
+    def test_no_conformer_default(self):
+        assert s(str).conformer is None
+
+    def test_construct_with_existing_spec_replaces_conformer(self):
+        spec = s(str, conformer=str.upper)
+        assert spec.conformer is str.upper
+        new_spec = s(spec, conformer=str.lower)
+        assert new_spec.conformer is str.lower
+        assert spec.conformer is str.upper
+
+    def test_predicate_exception(self):
+        assert not s(lambda v: int(v) > 0).is_valid("something")
+
+
+class TestSpecConformerComposition:
+    def test_spec_compose_conformer_with_no_default_conformer(self):
+        spec = s.str(regex=r"\d+")
+        assert "1" == spec.conform("1")
+        assert INVALID is spec.conform("abc")
+        spec_w_conformer = spec.compose_conformer(int)
+        assert 1 == spec_w_conformer.conform("1")
+        assert INVALID is spec_w_conformer.conform("abc")
+
+    def test_spec_compose_conformer_with_default_conformer(self):
+        spec = s.str(regex=r"\d+", conformer=int)
+        assert 1 == spec.conform("1")
+        assert INVALID is spec.conform("abc")
+        spec_w_conformer = spec.compose_conformer(lambda x: x * 2)
+        assert 2 == spec_w_conformer.conform("1")
+        assert INVALID is spec_w_conformer.conform("abc")
+
+    @pytest.fixture
+    def coll_spec_with_conformer_kwarg(self) -> Spec:
+        # Test composition with the `s` constructor `conformer` keyword
+        return s([s.str(regex=r"\d+", conformer=int)], conformer=sum)
+
+    def test_coll_spec_with_outer_conformer_from_kwarg(
+        self, coll_spec_with_conformer_kwarg: Spec
+    ):
+        assert 6 == coll_spec_with_conformer_kwarg.conform(["1", "2", "3"])
+        assert INVALID is coll_spec_with_conformer_kwarg.conform(["1", 2, "3"])
 
 
 class TestFunctionSpecs:
