@@ -40,6 +40,19 @@ class TestSpecConstructor:
     def test_no_signature_for_builtins(self):
         s.all(s.str(), str.istitle)
 
+    def test_no_conformer_default(self):
+        assert s(str).conformer is None
+
+    def test_construct_with_existing_spec_replaces_conformer(self):
+        spec = s(str, conformer=str.upper)
+        assert spec.conformer is str.upper
+        new_spec = s(spec, conformer=str.lower)
+        assert new_spec.conformer is str.lower
+        assert spec.conformer is str.upper
+
+    def test_predicate_exception(self):
+        assert not s(lambda v: int(v) > 0).is_valid("something")
+
 
 class TestFunctionSpecs:
     def test_arg_specs(self):

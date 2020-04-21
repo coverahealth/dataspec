@@ -23,6 +23,22 @@ class TestCollSpecValidation:
             err = e.errors[0]
             assert path == err.path
 
+    @pytest.mark.parametrize("kwargs", [(), [], ("into", "set")])
+    def test_coll_spec_kwargs(self, kwargs):
+        with pytest.raises(TypeError):
+            s([s.str(length=2, conformer=str.upper), kwargs])
+
+    class TestAllowStr:
+        @pytest.fixture
+        def allow_str_spec(self) -> Spec:
+            return s([str.isupper, {"allow_str": True}])
+
+        def test_allow_str_validation(self, allow_str_spec: Spec):
+            assert allow_str_spec.is_valid("ABC")
+
+        def test_kind_validation_failure(self, allow_str_spec: Spec):
+            assert not allow_str_spec.is_valid("ABc")
+
     class TestMinlengthValidation:
         @pytest.fixture
         def minlength_spec(self) -> Spec:
@@ -230,6 +246,14 @@ class TestCollSpecConformation:
         assert type(conformed) is set
         assert {"CA", "GA", "IL", "NY"} == conformed
 
+    @pytest.fixture
+    def coll_spec_with_conformer(self) -> Spec:
+        return s([s.str(regex=r"\d+", conformer=int)], conformer=sum)
+
+    def test_coll_spec_with_outer_conformer(self, coll_spec_with_conformer: Spec):
+        assert 6 == coll_spec_with_conformer.conform(["1", "2", "3"])
+        assert INVALID is coll_spec_with_conformer.conform(["1", 2, "3"])
+
 
 class TestDictSpecValidation:
     @pytest.fixture
@@ -324,6 +348,7 @@ class TestDictSpecValidation:
     )
     def test_dict_spec_failure(self, dict_spec: Spec, d):
         assert not dict_spec.is_valid(d)
+        assert list(dict_spec.validate(d))
 
     @pytest.mark.parametrize(
         "v,path",

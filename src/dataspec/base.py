@@ -758,7 +758,7 @@ def compose_conformers(*conformers: Conformer) -> Conformer:
         conformed_v = v
         for conform in conformers:
             conformed_v = conform(conformed_v)
-            if conformed_v is INVALID:
+            if conformed_v is INVALID or isinstance(conformed_v, Invalid):
                 break
         return conformed_v
 
@@ -780,7 +780,7 @@ def compose_spec_conformers(
         conformed_v = v
         for spec in specs:
             conformed_v = spec.conform(conformed_v)
-            if conformed_v is INVALID:
+            if conformed_v is INVALID or isinstance(conformed_v, Invalid):
                 break
         return conformed_v if conform_final is None else conform_final(conformed_v)
 
@@ -916,6 +916,14 @@ def make_spec(  # pylint: disable=inconsistent-return-statements  # noqa: MC0001
     Tuple Specs will conform into ``collections.NamedTuple`` s, with each element in
     the input tuple being validated and conformed to the corresponding element in the
     Spec.
+
+    Specs may be be created from existing Specs. If an existing :py:class:`datspec.Spec`
+    instance is given, that Spec will be returned without modification. If a tag is
+    given, a new Spec will be created from the existing Spec with the new tag. If a
+    conformer is given, a new Spec will be created from the existing Spec with the new
+    conformer (*replacing* any conformer on the existing Spec, rather than composing).
+    If both a new tag and conformer are given, a new Spec will be returned with both
+    the new tag and conformer.
 
     :param tag: an optional :py:data:`dataspec.Tag` for the resulting spec
     :param pred: a value which can be be converted into a :py:class:`dataspec.Spec`
