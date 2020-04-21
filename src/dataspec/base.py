@@ -271,7 +271,7 @@ class Spec(ABC):
     def is_valid(self, v: Any) -> bool:
         """
         Returns :py:obj:`True` if ``v`` is valid according to the Spec, otherwise
-        returns :py:obj:`False` .
+        returns :py:obj:`False`.
 
         :param v: a value to validate
         :return: :py:obj:`True` if the value is valid according to the Spec, otherwise
@@ -285,23 +285,25 @@ class Spec(ABC):
             return False
 
     @property
-    def conformer(self) -> Optional[IConformer]:
+    def conformer(self) -> Optional[IConformer]:  # pragma: no cover
         """Return the custom conformer attached to this Spec, if one is defined."""
         return None
 
     def conform(self, v: Any):
         """
         Conform ``v`` to the Spec, returning the possibly conformed value or an
-        instance of :py:class:`dataspec.Invalid` if the value cannot be conformed.
+        instance of :py:class:`dataspec.Invalid` if the value is invalid cannot
+        be conformed.
+
+        Exceptions arising from calling :py:attr:`dataspec.Spec.conformer` with ``v``
+        will be raised from this method.
 
         :param v: a value to conform
         :return: a conformed value or a :py:class:`dataspec.Invalid` instance if the
             input value could not be conformed
         """
         if self.is_valid(v):
-            if self.conformer is None:
-                return v
-            return self.conformer(v, is_valid=True)  # pylint: disable=not-callable
+            return self.conform_valid(v)  # pylint: disable=not-callable
         else:
             return INVALID
 
@@ -311,6 +313,9 @@ class Spec(ABC):
         possibly conformed value or ``INVALID`` if the value cannot be conformed.
 
         This function should be used only if ``v`` has already been check for validity.
+
+        Exceptions arising from calling :py:attr:`dataspec.Spec.conformer` with ``v``
+        will be raised from this method.
 
         :param v: a *validated* value to conform
         :return: a conformed value or a :py:class:`dataspec.Invalid` instance if the
@@ -326,12 +331,12 @@ class Spec(ABC):
         ``conformer`` and the current conformer for this Spec instance.
 
         If the current Spec instance has a custom conformer, this is equivalent to
-        calling ``spec.with_conformer(lambda v: new_conformer(spec.conformer(v)))`` .
+        calling ``spec.with_conformer(lambda v: conformer(spec.conformer(v)))``.
         If the current Spec instance has no custom conformer, this is equivalent to
-        calling :py:meth:`dataspec.Spec.with_conformer` with ``conformer`` .
+        calling :py:meth:`dataspec.Spec.with_conformer` with ``conformer``.
 
         To completely replace the conformer for this Spec instance, use
-        :py:meth:`dataspec.Spec.with_conformer` .
+        :py:meth:`dataspec.Spec.with_conformer`.
 
         This method does not modify the current Spec instance.
 
@@ -355,11 +360,10 @@ class Spec(ABC):
         conformer.
 
         To return a copy of the current Spec with a composition of the current
-        Spec instance, use :py:meth:`dataspec.Spec.compose_conformer` .
+        Spec instance, use :py:meth:`dataspec.Spec.compose_conformer`.
 
         :param conformer: a conformer to replace the conformer of the current Spec
             instance or :py:obj:`None` to remove the conformer associated with this
-
         :return: a copy of the current Spec instance with new conformer
         """
         return attr.evolve(self, conformer=conformer)
@@ -703,12 +707,15 @@ class ObjectSpec(DictSpec):
         cls,
         tag: Optional[Tag],
         kvspec: Mapping[str, SpecPredicate],
-        conformer: Conformer = None,
+        conformer: Optional[Conformer] = None,
     ):
-        def conform_object(_: Any):
-            raise TypeError("Cannot use a default conformer for an Object")
+        """
+        Return a Spec for an arbitrary object instance.
 
-        return super().from_val(tag, kvspec).with_conformer(conformer or conform_object)
+        Overwrite the default conformer provided for ``DictSpec`` s, since it does not
+        make sense for objects.
+        """
+        return super().from_val(tag, kvspec).with_conformer(conformer)
 
     def validate(self, o) -> Iterator[ErrorDetails]:  # pylint: disable=arguments-differ
         for k, vspec in self._reqkeyspecs.items():
@@ -878,7 +885,7 @@ def compose_conformer_fns(*conformers: ConformerFn) -> ConformerFn:
         conformed_v = v
         for conform in conformers:
             conformed_v = conform(conformed_v)
-            if conformed_v is INVALID:
+            if conformed_v is INVALID or isinstance(conformed_v, Invalid):
                 break
         return conformed_v
 
@@ -894,17 +901,14 @@ def compose_spec_conformers(
 
     Apply the ``conform_final`` conformer on the final return from the composition, if
     any.
+
+    This function bypasses the :py:meth:`dataspec.Spec.conform` method and accesses
+    :py:attr:`dataspec.Spec.conformer` directly.
     """
 
-    def do_conform(v):
-        conformed_v = v
-        for spec in specs:
-            conformed_v = spec.conform(conformed_v)
-            if conformed_v is INVALID:
-                break
-        return conformed_v if conform_final is None else conform_final(conformed_v)
-
-    return do_conform
+    return compose_conformer_fns(
+        *filter(None, chain((spec.conformer for spec in specs), (conform_final,)))
+    )
 
 
 _MUNGE_NAMES = re.compile(r"[\s|-]")
@@ -1006,7 +1010,7 @@ def make_spec(  # pylint: disable=inconsistent-return-statements  # noqa: MC0001
 
     Specs may be created from Python types, in which case a Spec will be produced
     that performs an :py:func:`isinstance` check. :py:obj:`None` may be provided as
-    a shortcut for ``type(None)`` . To specify a nilable value, you should use
+    a shortcut for ``type(None)``. To specify a nilable value, you should use
     :py:meth:`dataspec.SpecAPI.nilable` instead.
 
     Specs may be created for enumerated types using a Python ``set`` or ``frozenset``
@@ -1036,6 +1040,14 @@ def make_spec(  # pylint: disable=inconsistent-return-statements  # noqa: MC0001
     Tuple Specs will conform into ``collections.NamedTuple`` s, with each element in
     the input tuple being validated and conformed to the corresponding element in the
     Spec.
+
+    Specs may be be created from existing Specs. If an existing :py:class:`datspec.Spec`
+    instance is given, that Spec will be returned without modification. If a tag is
+    given, a new Spec will be created from the existing Spec with the new tag. If a
+    conformer is given, a new Spec will be created from the existing Spec with the new
+    conformer (*replacing* any conformer on the existing Spec, rather than composing).
+    If both a new tag and conformer are given, a new Spec will be returned with both
+    the new tag and conformer.
 
     :param tag: an optional :py:data:`dataspec.Tag` for the resulting spec
     :param pred: a value which can be be converted into a :py:class:`dataspec.Spec`
