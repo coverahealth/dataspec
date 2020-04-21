@@ -39,7 +39,7 @@ from dataspec.base import (
     Tag,
     ValidatorFn,
     ValidatorSpec,
-    compose_conformers,
+    compose_conformer_fns,
     compose_spec_conformers,
     make_spec,
     pred_to_validator,
@@ -580,7 +580,7 @@ def _make_datetime_spec_factory(  # noqa: MC0001
             return ValidatorSpec(
                 tag or type.__name__,
                 validate_datetime_str,
-                conformer=compose_conformers(
+                conformer=compose_conformer_fns(
                     conform_datetime_str, *filter(None, (conformer,))
                 ),
             )
@@ -672,7 +672,7 @@ else:
             tag,
             is_str,
             str_contains_datetime,
-            conformer=compose_conformers(
+            conformer=compose_conformer_fns(
                 cast(Conformer, parse_date_str), *filter(None, (conformer,))
             ),
         )
@@ -1165,7 +1165,7 @@ else:
             tag,
             is_str,
             str_contains_phonenumber,
-            conformer=compose_conformers(
+            conformer=compose_conformer_fns(
                 default_conformer, *filter(None, (conformer,))
             ),
         )

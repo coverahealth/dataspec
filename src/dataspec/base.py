@@ -728,7 +728,7 @@ class ObjectSpec(DictSpec):
                 yield from _enrich_errors(vspec.validate(getattr(o, k)), self.tag, k)
 
 
-def _enum_conformer(e: EnumMeta) -> Conformer:
+def _enum_conformer(e: EnumMeta) -> ConformerFn:
     """Create a conformer for Enum types which accepts Enum instances, Enum values,
     and Enum names."""
 
@@ -770,7 +770,7 @@ class SetSpec(Spec):
                     [mem, mem.name, mem.value] for mem in pred  # type: ignore[var-annotated]  # noqa
                 )
             ),
-            conformer=compose_conformers(
+            conformer=compose_conformer_fns(
                 _enum_conformer(pred), *filter(None, (conformer,)),
             ),
         )
@@ -863,9 +863,10 @@ def _enrich_errors(
         yield error.with_details(tag, loc=loc)
 
 
-def compose_conformers(*conformers: Conformer) -> Conformer:
+def compose_conformer_fns(*conformers: ConformerFn) -> ConformerFn:
     """
-    Return a single conformer which is the composition of the input conformers.
+    Return a single conformer function which is the composition of the input
+    conformers.
 
     If a single conformer is given, return the conformer.
     """
@@ -885,8 +886,8 @@ def compose_conformers(*conformers: Conformer) -> Conformer:
 
 
 def compose_spec_conformers(
-    *specs: Spec, conform_final: Optional[Conformer] = None
-) -> Conformer:
+    *specs: Spec, conform_final: Optional[ConformerFn] = None
+) -> ConformerFn:
     """
     Return a single conformer which is the composition of the conformers from each of
     the child specs.
