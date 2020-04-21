@@ -19,7 +19,7 @@ Composition
 Specs are designed to be composed, so each of the builtin spec types can serve as the
 base for more complex data definitions. For collection, mapping, and tuple type Specs,
 Specs will be recursively created for child elements if they are types understood
-by :py:func:`dataspec.s` .
+by :py:func:`dataspec.s`.
 
 .. _predicates:
 

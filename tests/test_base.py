@@ -23,6 +23,22 @@ class TestCollSpecValidation:
             err = e.errors[0]
             assert path == err.path
 
+    @pytest.mark.parametrize("kwargs", [(), [], ("into", "set")])
+    def test_coll_spec_kwargs(self, kwargs):
+        with pytest.raises(TypeError):
+            s([s.str(length=2, conformer=str.upper), kwargs])
+
+    class TestAllowStr:
+        @pytest.fixture
+        def allow_str_spec(self) -> Spec:
+            return s([str.isupper, {"allow_str": True}])
+
+        def test_allow_str_validation(self, allow_str_spec: Spec):
+            assert allow_str_spec.is_valid("ABC")
+
+        def test_kind_validation_failure(self, allow_str_spec: Spec):
+            assert not allow_str_spec.is_valid("ABc")
+
     class TestMinlengthValidation:
         @pytest.fixture
         def minlength_spec(self) -> Spec:
@@ -324,6 +340,7 @@ class TestDictSpecValidation:
     )
     def test_dict_spec_failure(self, dict_spec: Spec, d):
         assert not dict_spec.is_valid(d)
+        assert list(dict_spec.validate(d))
 
     @pytest.mark.parametrize(
         "v,path",
@@ -486,6 +503,14 @@ class TestObjectSpecValidation:
     )
     def test_obj_spec_failure(self, obj_spec: Spec, o):
         assert not obj_spec.is_valid(o)
+
+    def test_missing_and_optional_attrs(self):
+        @attr.s(auto_attribs=True, frozen=True, slots=True)
+        class Spam:
+            id: int
+
+        assert not s.obj({"id": int, "name": str}).is_valid(Spam(15))
+        assert s.obj({"id": int, s.opt("name"): str}).is_valid(Spam(15))
 
 
 class TestSetSpec:

@@ -10,8 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the value spec tags are derived automatically from the corresponding dict keys (#52)
 - Add documentation built using Sphinx and hosted on ReadTheDocs (#9)
 - Add a `regex` validator to the `s.bytes` factory (#37)
+- Added `Spec.compose_conformer` to allow composition of new conformers with existing
+  conformers (#65)
 - Add `s.rename` as a spec factory for validating that values are mapping types and
   providing a default conformer to rename keys (#60)
+
+### Changed
+- **Breaking** `Spec.with_conformer` will now replace the default conformer applied
+  to a Spec instance. Previously, most default conformers were applied using the
+  private `Spec._default_conform` method. To emulate the previous behavior, you
+  can use `Spec.compose_conformer`, which will compose your conformer after any
+  existing conformers on a Spec instance and return a copy with that composition.
+  (#65)
 
 ### Fixed
 - Fixed a bug where `s(None)` is not a valid alias for `s(type(None))` (#61)
