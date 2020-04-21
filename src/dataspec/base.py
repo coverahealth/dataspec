@@ -202,14 +202,18 @@ class Spec(ABC):
     def conform(self, v: Any):
         """
         Conform ``v`` to the Spec, returning the possibly conformed value or an
-        instance of :py:class:`dataspec.Invalid` if the value cannot be conformed.
+        instance of :py:class:`dataspec.Invalid` if the value is invalid cannot
+        be conformed.
+
+        Exceptions arising from calling :py:attr:`dataspec.Spec.conformer` with ``v``
+        will be raised from this method.
 
         :param v: a value to conform
         :return: a conformed value or a :py:class:`dataspec.Invalid` instance if the
             input value could not be conformed
         """
         if self.is_valid(v):
-            return self.conform_valid(v)
+            return self.conform_valid(v)  # pylint: disable=not-callable
         else:
             return INVALID
 
@@ -220,16 +224,16 @@ class Spec(ABC):
 
         This function should be used only if ``v`` has already been check for validity.
 
+        Exceptions arising from calling :py:attr:`dataspec.Spec.conformer` with ``v``
+        will be raised from this method.
+
         :param v: a *validated* value to conform
         :return: a conformed value or a :py:class:`dataspec.Invalid` instance if the
             input value could not be conformed
         """
         if self.conformer is None:
             return v
-        try:
-            return self.conformer(v)  # pylint: disable=not-callable
-        except Exception:
-            return INVALID
+        return self.conformer(v)  # pylint: disable=not-callable
 
     def compose_conformer(self, conformer: Conformer) -> "Spec":
         """
@@ -594,10 +598,13 @@ class ObjectSpec(DictSpec):
         kvspec: Mapping[str, SpecPredicate],
         conformer: Optional[Conformer] = None,
     ):
-        def conform_object(_):
-            raise TypeError("Cannot use a default conformer for an Object")
+        """
+        Return a Spec for an arbitrary object instance.
 
-        return super().from_val(tag, kvspec).with_conformer(conformer or conform_object)
+        Overwrite the default conformer provided for ``DictSpec`` s, since it does not
+        make sense for objects.
+        """
+        return super().from_val(tag, kvspec).with_conformer(conformer)
 
     def validate(self, o) -> Iterator[ErrorDetails]:  # pylint: disable=arguments-differ
         for k, vspec in self._reqkeyspecs.items():
