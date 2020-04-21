@@ -774,17 +774,14 @@ def compose_spec_conformers(
 
     Apply the ``conform_final`` conformer on the final return from the composition, if
     any.
+
+    This function bypasses the :py:meth:`dataspec.Spec.conform` method and accesses
+    :py:attr:`dataspec.Spec.conformer` directly.
     """
 
-    def do_conform(v):
-        conformed_v = v
-        for spec in specs:
-            conformed_v = spec.conform(conformed_v)
-            if conformed_v is INVALID or isinstance(conformed_v, Invalid):
-                break
-        return conformed_v if conform_final is None else conform_final(conformed_v)
-
-    return do_conform
+    return compose_conformers(
+        *filter(None, chain((spec.conformer for spec in specs), (conform_final,)))
+    )
 
 
 _MUNGE_NAMES = re.compile(r"[\s|-]")
