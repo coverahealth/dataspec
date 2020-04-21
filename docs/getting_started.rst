@@ -12,7 +12,7 @@ What are Specs?
 ---------------
 
 Specs are declarative data specifications written in pure Python code. Specs can be
-created using the generic Spec constructor function :py:func:`dataspec.s` . Specs
+created using the generic Spec constructor function :py:func:`dataspec.s`. Specs
 provide two useful and related functions. The first is to evaluate whether an arbitrary
 data structure satisfies the specification. The second function is to conform (or
 normalize) valid data structures into a canonical format.
@@ -148,7 +148,7 @@ also supports using Python's ``Enum`` objects for defining enumerated types.
 
 We did declare two separate Specs and pass both to ``s`` directly. However, we could
 have declared the entire Spec inline and ``s`` would have converted each child value
-into a Spec automatically: ``s([{"CA", "GA", "NY"}, {"kind": list}])`` .
+into a Spec automatically: ``s([{"CA", "GA", "NY"}, {"kind": list}])``.
 
 Building on the previous example, let's suppose we want to validate a simplified
 version of that physician profile object. Spec is great for validating data at your

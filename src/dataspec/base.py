@@ -181,7 +181,7 @@ class Spec(ABC):
     def is_valid(self, v: Any) -> bool:
         """
         Returns :py:obj:`True` if ``v`` is valid according to the Spec, otherwise
-        returns :py:obj:`False` .
+        returns :py:obj:`False`.
 
         :param v: a value to validate
         :return: :py:obj:`True` if the value is valid according to the Spec, otherwise
@@ -237,12 +237,12 @@ class Spec(ABC):
         ``conformer`` and the current conformer for this Spec instance.
 
         If the current Spec instance has a custom conformer, this is equivalent to
-        calling ``spec.with_conformer(lambda v: new_conformer(spec.conformer(v)))`` .
+        calling ``spec.with_conformer(lambda v: conformer(spec.conformer(v)))``.
         If the current Spec instance has no custom conformer, this is equivalent to
-        calling :py:meth:`dataspec.Spec.with_conformer` with ``conformer`` .
+        calling :py:meth:`dataspec.Spec.with_conformer` with ``conformer``.
 
         To completely replace the conformer for this Spec instance, use
-        :py:meth:`dataspec.Spec.with_conformer` .
+        :py:meth:`dataspec.Spec.with_conformer`.
 
         This method does not modify the current Spec instance.
 
@@ -270,11 +270,10 @@ class Spec(ABC):
         conformer.
 
         To return a copy of the current Spec with a composition of the current
-        Spec instance, use :py:meth:`dataspec.Spec.compose_conformer` .
+        Spec instance, use :py:meth:`dataspec.Spec.compose_conformer`.
 
         :param conformer: a conformer to replace the conformer of the current Spec
             instance or :py:obj:`None` to remove the conformer associated with this
-
         :return: a copy of the current Spec instance with new conformer
         """
         return attr.evolve(self, conformer=conformer)
@@ -593,7 +592,7 @@ class ObjectSpec(DictSpec):
         cls,
         tag: Optional[Tag],
         kvspec: Mapping[str, SpecPredicate],
-        conformer: Conformer = None,
+        conformer: Optional[Conformer] = None,
     ):
         def conform_object(_):
             raise TypeError("Cannot use a default conformer for an Object")
@@ -880,7 +879,7 @@ def make_spec(  # pylint: disable=inconsistent-return-statements  # noqa: MC0001
 
     Specs may be created from Python types, in which case a Spec will be produced
     that performs an :py:func:`isinstance` check. :py:obj:`None` may be provided as
-    a shortcut for ``type(None)`` . To specify a nilable value, you should use
+    a shortcut for ``type(None)``. To specify a nilable value, you should use
     :py:meth:`dataspec.SpecAPI.nilable` instead.
 
     Specs may be created for enumerated types using a Python ``set`` or ``frozenset``
