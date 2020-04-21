@@ -246,14 +246,6 @@ class TestCollSpecConformation:
         assert type(conformed) is set
         assert {"CA", "GA", "IL", "NY"} == conformed
 
-    @pytest.fixture
-    def coll_spec_with_conformer(self) -> Spec:
-        return s([s.str(regex=r"\d+", conformer=int)], conformer=sum)
-
-    def test_coll_spec_with_outer_conformer(self, coll_spec_with_conformer: Spec):
-        assert 6 == coll_spec_with_conformer.conform(["1", "2", "3"])
-        assert INVALID is coll_spec_with_conformer.conform(["1", 2, "3"])
-
 
 class TestDictSpecValidation:
     @pytest.fixture
@@ -511,6 +503,14 @@ class TestObjectSpecValidation:
     )
     def test_obj_spec_failure(self, obj_spec: Spec, o):
         assert not obj_spec.is_valid(o)
+
+    def test_missing_and_optional_attrs(self):
+        @attr.s(auto_attribs=True, frozen=True, slots=True)
+        class Spam:
+            id: int
+
+        assert not s.obj({"id": int, "name": str}).is_valid(Spam(15))
+        assert s.obj({"id": int, s.opt("name"): str}).is_valid(Spam(15))
 
 
 class TestSetSpec:
