@@ -76,7 +76,9 @@ class TestSpecConformerComposition:
         # Test composition with the `s` constructor `conformer` keyword
         return s([s.str(regex=r"\d+", conformer=int)], conformer=sum)
 
-    def test_coll_spec_with_outer_conformer_from_kwarg(self, coll_spec_with_conformer_kwarg: Spec):
+    def test_coll_spec_with_outer_conformer_from_kwarg(
+        self, coll_spec_with_conformer_kwarg: Spec
+    ):
         assert 6 == coll_spec_with_conformer_kwarg.conform(["1", "2", "3"])
         assert INVALID is coll_spec_with_conformer_kwarg.conform(["1", 2, "3"])
 
