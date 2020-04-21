@@ -195,7 +195,7 @@ class Spec(ABC):
             return False
 
     @property
-    def conformer(self) -> Optional[Conformer]:
+    def conformer(self) -> Optional[Conformer]:  # pragma: no cover
         """Return the custom conformer attached to this Spec, if one is defined."""
         return None
 
