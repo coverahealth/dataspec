@@ -25,6 +25,7 @@ from typing import (
     TypeVar,
     Union,
     cast,
+    overload,
 )
 
 import attr
@@ -133,7 +134,16 @@ class ValidationError(Exception):
     errors: Sequence[ErrorDetails]
 
 
-class Spec(ABC):
+T_input = TypeVar("T_input")
+T_conformed = TypeVar("T_conformed")
+
+# Generic types used for composing and replacing conformers
+T_newinput = TypeVar("T_newinput")
+T_composed = TypeVar("T_composed")
+T_replaced = TypeVar("T_replaced")
+
+
+class Spec(Generic[T_input, T_conformed], ABC):
     """
     The abstract base class of all Specs.
 
@@ -195,11 +205,23 @@ class Spec(ABC):
             return False
 
     @property
-    def conformer(self) -> Optional[Conformer]:  # pragma: no cover
+    def conformer(
+        self,
+    ) -> Optional[Conformer[T_input, T_conformed]]:  # pragma: no cover
         """Return the custom conformer attached to this Spec, if one is defined."""
         return None
 
-    def conform(self, v: Any):
+    @overload
+    def conform(self: "Spec[T_input, T_input]", v: Any) -> Union[T_input, Invalid]:
+        ...
+
+    @overload
+    def conform(
+        self: "Spec[T_input, T_conformed]", v: Any
+    ) -> Union[T_conformed, Invalid]:
+        ...
+
+    def conform(self, v: Any) -> Union[T_input, T_conformed, Invalid]:
         """
         Conform ``v`` to the Spec, returning the possibly conformed value or an
         instance of :py:class:`dataspec.Invalid` if the value is invalid cannot
@@ -217,7 +239,17 @@ class Spec(ABC):
         else:
             return INVALID
 
-    def conform_valid(self, v: Any):
+    @overload
+    def conform_valid(self: "Spec[T_input, T_input]", v: T_input) -> T_input:
+        ...
+
+    @overload
+    def conform_valid(
+        self: "Spec[T_input, T_conformed]", v: T_input
+    ) -> Union[T_conformed, Invalid]:
+        ...
+
+    def conform_valid(self, v: T_input) -> Union[T_input, T_conformed, Invalid]:
         """
         Conform ``v`` to the Spec without checking if v is valid first and return the
         possibly conformed value or ``INVALID`` if the value cannot be conformed.
@@ -235,7 +267,20 @@ class Spec(ABC):
             return v
         return self.conformer(v)  # pylint: disable=not-callable
 
-    def compose_conformer(self, conformer: Conformer) -> "Spec":
+    @overload
+    def compose_conformer(
+        self: "Spec[T_input, T_input]", conformer: Conformer[T_input, T_replaced]
+    ) -> "Spec[T_input, T_replaced]":
+        ...
+
+    @overload
+    def compose_conformer(
+        self: "Spec[T_input, T_conformed]",
+        conformer: Conformer[T_conformed, T_composed],
+    ) -> "Spec[T_input, T_composed]":
+        ...
+
+    def compose_conformer(self, conformer):
         """
         Return a new Spec instance with a new conformer which is the composition of the
         ``conformer`` and the current conformer for this Spec instance.
@@ -259,13 +304,23 @@ class Spec(ABC):
         if existing_conformer is None:
             return self.with_conformer(conformer)
 
-        def conform_spec(v: T) -> Union[V, Invalid]:
+        def conform_spec(v: T_input) -> Union[T_composed, Invalid]:
             assert existing_conformer is not None
             return conformer(existing_conformer(v))  # pylint: disable=not-callable
 
         return self.with_conformer(conform_spec)
 
-    def with_conformer(self, conformer: Optional[Conformer]) -> "Spec":
+    @overload
+    def with_conformer(self, conformer: None) -> "Spec[T_input, T_input]":
+        ...
+
+    @overload
+    def with_conformer(
+        self, conformer: Conformer[T_newinput, T_replaced]
+    ) -> "Spec[T_newinput, T_replaced]":
+        ...
+
+    def with_conformer(self, conformer):
         """
         Return a new Spec instance with the new conformer, replacing any custom
         conformers.
@@ -282,7 +337,7 @@ class Spec(ABC):
         """
         return attr.evolve(self, conformer=conformer)
 
-    def with_tag(self, tag: Tag) -> "Spec":
+    def with_tag(self, tag: Tag) -> "Spec[T_input, T_conformed]":
         """
         Return a new Spec instance with the new tag applied.
 
@@ -295,16 +350,16 @@ class Spec(ABC):
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
-class ValidatorSpec(Spec):
+class ValidatorSpec(Spec[T_input, T_conformed]):
     """Validator Specs yield richly detailed errors from their validation functions and
     can be useful for answering more detailed questions about their their input data
     than a simple predicate function."""
 
     tag: Tag
     _validate: ValidatorFn
-    conformer: Optional[Conformer] = None
+    conformer: Optional[Conformer[T_input, T_conformed]] = None
 
-    def validate(self, v) -> Iterator[ErrorDetails]:
+    def validate(self, v: T_input) -> Iterator[ErrorDetails]:
         try:
             yield from _enrich_errors(self._validate(v), self.tag)
         except Exception as e:
@@ -341,7 +396,7 @@ class ValidatorSpec(Spec):
             else:
                 specs.append(ValidatorSpec(pred.__name__, pred))
 
-        def do_validate(v) -> Iterator[ErrorDetails]:
+        def do_validate(v: Any) -> Iterator[ErrorDetails]:
             for spec in specs:
                 yield from spec.validate(v)
 
@@ -351,7 +406,7 @@ class ValidatorSpec(Spec):
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
-class PredicateSpec(Spec):
+class PredicateSpec(Spec[T_input, T_conformed]):
     """
     Predicate Specs are useful for validating data with a boolean predicate function.
 
@@ -361,9 +416,9 @@ class PredicateSpec(Spec):
 
     tag: Tag
     _pred: PredicateFn
-    conformer: Optional[Conformer] = None
+    conformer: Optional[Conformer[T_input, T_conformed]] = None
 
-    def validate(self, v) -> Iterator[ErrorDetails]:
+    def validate(self, v: T_input) -> Iterator[ErrorDetails]:
         try:
             if not self._pred(v):
                 yield ErrorDetails(
@@ -379,20 +434,40 @@ class PredicateSpec(Spec):
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
-class CollSpec(Spec):
+class CollSpec(Spec[T_input, T_conformed]):
     tag: Tag
     _spec: Spec
-    conformer: Optional[Conformer] = None
+    conformer: Optional[Conformer[T_input, T_conformed]] = None
     _out_type: Optional[Type] = None
     _validate_coll: Optional[ValidatorSpec] = None
+
+    @classmethod
+    @overload
+    def from_val(
+        cls,
+        tag: Optional[Tag],
+        sequence: Sequence[Union[SpecPredicate, Mapping[str, Any]]],
+        conformer: None,
+    ) -> Spec[Iterable, Union[Tuple, NamedTuple]]:
+        ...
+
+    @classmethod
+    @overload
+    def from_val(
+        cls,
+        tag: Optional[Tag],
+        sequence: Sequence[Union[SpecPredicate, Mapping[str, Any]]],
+        conformer: Conformer[Union[Tuple, NamedTuple], T_composed],
+    ) -> "Spec[Iterable, T_composed]":
+        ...
 
     @classmethod  # noqa: MC0001
     def from_val(
         cls,
         tag: Optional[Tag],
         sequence: Sequence[Union[SpecPredicate, Mapping[str, Any]]],
-        conformer: Conformer = None,
-    ):
+        conformer: Optional[Conformer] = None,
+    ) -> Spec:
         # pylint: disable=too-many-branches,too-many-locals
         spec = make_spec(sequence[0])
         validate_coll: Optional[ValidatorSpec] = None
@@ -508,7 +583,7 @@ class CollSpec(Spec):
             validate_coll=validate_coll,
         )
 
-    def validate(self, v) -> Iterator[ErrorDetails]:
+    def validate(self, v: T_input) -> Iterator[ErrorDetails]:
         if self._validate_coll:
             yield from _enrich_errors(self._validate_coll.validate(v), self.tag)
 
@@ -524,11 +599,11 @@ class OptionalKey(Generic[T]):
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
-class DictSpec(Spec):
+class DictSpec(Spec[T_input, T_conformed]):
     tag: Tag
     _reqkeyspecs: Mapping[Any, Spec] = attr.ib(factory=dict)
     _optkeyspecs: Mapping[Any, Spec] = attr.ib(factory=dict)
-    conformer: Optional[Conformer] = None
+    conformer: Optional[Conformer[T_input, T_conformed]] = None
 
     @classmethod
     def from_val(
@@ -563,7 +638,9 @@ class DictSpec(Spec):
             conformer=compose_conformers(conform_mapping, *filter(None, (conformer,))),
         )
 
-    def validate(self, d) -> Iterator[ErrorDetails]:  # pylint: disable=arguments-differ
+    def validate(
+        self, d: T_input
+    ) -> Iterator[ErrorDetails]:  # pylint: disable=arguments-differ
         try:
             for k, vspec in self._reqkeyspecs.items():
                 if k in d:
@@ -590,7 +667,7 @@ class DictSpec(Spec):
                 yield from _enrich_errors(vspec.validate(d[k]), self.tag, k)
 
 
-class ObjectSpec(DictSpec):
+class ObjectSpec(DictSpec[T_input, T_conformed]):
     @classmethod
     def from_val(
         cls,
@@ -641,12 +718,12 @@ def _enum_conformer(e: EnumMeta) -> Conformer:
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
-class SetSpec(Spec):
+class SetSpec(Spec[T_input, T_conformed]):
     tag: Tag
     _values: Union[Set, FrozenSet]
-    conformer: Optional[Conformer] = None
+    conformer: Optional[Conformer[T_input, T_conformed]] = None
 
-    def validate(self, v) -> Iterator[ErrorDetails]:
+    def validate(self, v: T_input) -> Iterator[ErrorDetails]:
         if v not in self._values:
             yield ErrorDetails(
                 message=f"Value '{v}' not in '{self._values}'",
@@ -672,12 +749,15 @@ class SetSpec(Spec):
         )
 
 
+T_conformed_tuple = TypeVar("T_conformed_tuple", bound=Union[Tuple, NamedTuple])
+
+
 @attr.s(auto_attribs=True, frozen=True, slots=True)
-class TupleSpec(Spec):
+class TupleSpec(Spec[T_input, T_conformed]):
     tag: Tag
     _pred: Tuple[SpecPredicate, ...]
     _specs: Tuple[Spec, ...]
-    conformer: Optional[Conformer] = None
+    conformer: Optional[Conformer[T_input, T_conformed]] = None
     _namedtuple: Optional[Type[NamedTuple]] = None
 
     @classmethod
@@ -685,8 +765,8 @@ class TupleSpec(Spec):
         cls,
         tag: Optional[Tag],
         pred: Tuple[SpecPredicate, ...],
-        conformer: Conformer = None,
-    ):
+        conformer: Optional[Conformer] = None,
+    ) -> Spec[T_input, T_conformed]:
         specs = tuple(make_spec(e_pred) for e_pred in pred)
 
         spec_tags = tuple(re.sub(_MUNGE_NAMES, "_", spec.tag) for spec in specs)
@@ -697,7 +777,7 @@ class TupleSpec(Spec):
         else:
             namedtuple_type = None  # type: ignore
 
-        def conform_tuple(v) -> Union[Tuple, NamedTuple]:
+        def conform_tuple(v: T_input) -> Union[Tuple, NamedTuple]:
             return ((namedtuple_type and namedtuple_type._make) or tuple)(
                 spec.conform(v) for spec, v in zip(specs, v)
             )
@@ -710,7 +790,9 @@ class TupleSpec(Spec):
             namedtuple=namedtuple_type,  # type: ignore
         )
 
-    def validate(self, t) -> Iterator[ErrorDetails]:  # pylint: disable=arguments-differ
+    def validate(
+        self, t: T_input
+    ) -> Iterator[ErrorDetails]:  # pylint: disable=arguments-differ
         try:
             if len(t) != len(self._specs):
                 yield ErrorDetails(
@@ -855,9 +937,21 @@ def pred_to_validator(
     return to_validator
 
 
+@overload
+def type_spec(tag: Optional[Tag], tp: Type, conformer: None,) -> Spec[T_input, T_input]:
+    ...
+
+
+@overload
 def type_spec(
-    tag: Optional[Tag] = None, tp: Type = object, conformer: Optional[Conformer] = None
-) -> Spec:
+    tag: Optional[Tag], tp: Type, conformer: Conformer[T_input, T_conformed],
+) -> Spec[T_input, T_conformed]:
+    ...
+
+
+def type_spec(
+    tag=None, tp=object, conformer=None,
+):
     """Return a spec that validates inputs are instances of tp."""
 
     @pred_to_validator(f"Value '{{value}}' is not a {tp.__name__}", complement=True)

@@ -74,7 +74,9 @@ class TestSpecConformerComposition:
     @pytest.fixture
     def coll_spec_with_conformer_kwarg(self) -> Spec:
         # Test composition with the `s` constructor `conformer` keyword
-        return s([s.str(regex=r"\d+", conformer=int)], conformer=sum)
+        x = s([s.str(regex=r"\d+", conformer=int)], conformer=sum)
+        v = x.conform(["1", "2", "3"])
+        return v
 
     def test_coll_spec_with_outer_conformer_from_kwarg(
         self, coll_spec_with_conformer_kwarg: Spec
