@@ -9,6 +9,7 @@ from itertools import chain
 from typing import (
     Any,
     Callable,
+    Collection,
     FrozenSet,
     Generic,
     Iterable,
@@ -29,6 +30,10 @@ from typing import (
 )
 
 import attr
+
+# In Python 3.6, you cannot inherit directly from Generic with slotted classes:
+# https://github.com/python-attrs/attrs/issues/313
+_USE_SLOTS_FOR_GENERIC = sys.version_info >= (3, 7)
 
 T = TypeVar("T")
 V = TypeVar("V")
@@ -215,13 +220,13 @@ class Spec(Generic[T_input, T_conformed], ABC):
     def conform(self: "Spec[T_input, T_input]", v: Any) -> Union[T_input, Invalid]:
         ...
 
-    @overload
+    @overload  # noqa: F811
     def conform(
         self: "Spec[T_input, T_conformed]", v: Any
     ) -> Union[T_conformed, Invalid]:
         ...
 
-    def conform(self, v: Any) -> Union[T_input, T_conformed, Invalid]:
+    def conform(self, v: Any) -> Union[T_input, T_conformed, Invalid]:  # noqa: F811
         """
         Conform ``v`` to the Spec, returning the possibly conformed value or an
         instance of :py:class:`dataspec.Invalid` if the value is invalid cannot
@@ -243,13 +248,15 @@ class Spec(Generic[T_input, T_conformed], ABC):
     def conform_valid(self: "Spec[T_input, T_input]", v: T_input) -> T_input:
         ...
 
-    @overload
+    @overload  # noqa: F811
     def conform_valid(
         self: "Spec[T_input, T_conformed]", v: T_input
     ) -> Union[T_conformed, Invalid]:
         ...
 
-    def conform_valid(self, v: T_input) -> Union[T_input, T_conformed, Invalid]:
+    def conform_valid(
+        self, v: T_input
+    ) -> Union[T_input, T_conformed, Invalid]:  # noqa: F811
         """
         Conform ``v`` to the Spec without checking if v is valid first and return the
         possibly conformed value or ``INVALID`` if the value cannot be conformed.
@@ -273,14 +280,14 @@ class Spec(Generic[T_input, T_conformed], ABC):
     ) -> "Spec[T_input, T_replaced]":
         ...
 
-    @overload
+    @overload  # noqa: F811
     def compose_conformer(
         self: "Spec[T_input, T_conformed]",
         conformer: Conformer[T_conformed, T_composed],
     ) -> "Spec[T_input, T_composed]":
         ...
 
-    def compose_conformer(self, conformer):
+    def compose_conformer(self, conformer):  # noqa: F811
         """
         Return a new Spec instance with a new conformer which is the composition of the
         ``conformer`` and the current conformer for this Spec instance.
@@ -314,13 +321,13 @@ class Spec(Generic[T_input, T_conformed], ABC):
     def with_conformer(self, conformer: None) -> "Spec[T_input, T_input]":
         ...
 
-    @overload
+    @overload  # noqa: F811
     def with_conformer(
         self, conformer: Conformer[T_newinput, T_replaced]
     ) -> "Spec[T_newinput, T_replaced]":
         ...
 
-    def with_conformer(self, conformer):
+    def with_conformer(self, conformer):  # noqa: F811
         """
         Return a new Spec instance with the new conformer, replacing any custom
         conformers.
@@ -349,7 +356,7 @@ class Spec(Generic[T_input, T_conformed], ABC):
         return attr.evolve(self, tag=tag)
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.s(auto_attribs=True, frozen=True, slots=_USE_SLOTS_FOR_GENERIC)
 class ValidatorSpec(Spec[T_input, T_conformed]):
     """Validator Specs yield richly detailed errors from their validation functions and
     can be useful for answering more detailed questions about their their input data
@@ -359,7 +366,7 @@ class ValidatorSpec(Spec[T_input, T_conformed]):
     _validate: ValidatorFn
     conformer: Optional[Conformer[T_input, T_conformed]] = None
 
-    def validate(self, v: T_input) -> Iterator[ErrorDetails]:
+    def validate(self, v: Any) -> Iterator[ErrorDetails]:
         try:
             yield from _enrich_errors(self._validate(v), self.tag)
         except Exception as e:
@@ -405,7 +412,7 @@ class ValidatorSpec(Spec[T_input, T_conformed]):
         )
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.s(auto_attribs=True, frozen=True, slots=_USE_SLOTS_FOR_GENERIC)
 class PredicateSpec(Spec[T_input, T_conformed]):
     """
     Predicate Specs are useful for validating data with a boolean predicate function.
@@ -418,7 +425,7 @@ class PredicateSpec(Spec[T_input, T_conformed]):
     _pred: PredicateFn
     conformer: Optional[Conformer[T_input, T_conformed]] = None
 
-    def validate(self, v: T_input) -> Iterator[ErrorDetails]:
+    def validate(self, v: Any) -> Iterator[ErrorDetails]:
         try:
             if not self._pred(v):
                 yield ErrorDetails(
@@ -433,11 +440,14 @@ class PredicateSpec(Spec[T_input, T_conformed]):
             )
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
-class CollSpec(Spec[T_input, T_conformed]):
+T_collinput = TypeVar("T_collinput", bound=Iterable)
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=_USE_SLOTS_FOR_GENERIC)
+class CollSpec(Spec[T_collinput, T_conformed]):
     tag: Tag
     _spec: Spec
-    conformer: Optional[Conformer[T_input, T_conformed]] = None
+    conformer: Optional[Conformer[T_collinput, T_conformed]] = None
     _out_type: Optional[Type] = None
     _validate_coll: Optional[ValidatorSpec] = None
 
@@ -447,21 +457,21 @@ class CollSpec(Spec[T_input, T_conformed]):
         cls,
         tag: Optional[Tag],
         sequence: Sequence[Union[SpecPredicate, Mapping[str, Any]]],
-        conformer: None,
-    ) -> Spec[Iterable, Union[Tuple, NamedTuple]]:
+        conformer: None = None,
+    ) -> Spec[Iterable, Collection]:
         ...
 
-    @classmethod
+    @classmethod  # noqa: F811
     @overload
     def from_val(
         cls,
         tag: Optional[Tag],
         sequence: Sequence[Union[SpecPredicate, Mapping[str, Any]]],
-        conformer: Conformer[Union[Tuple, NamedTuple], T_composed],
-    ) -> "Spec[Iterable, T_composed]":
+        conformer: Conformer[T_collinput, T_composed],
+    ) -> Spec[T_collinput, T_composed]:
         ...
 
-    @classmethod  # noqa: MC0001
+    @classmethod  # noqa: MC0001, F811
     def from_val(
         cls,
         tag: Optional[Tag],
@@ -572,7 +582,7 @@ class CollSpec(Spec[T_input, T_conformed]):
         if validators:
             validate_coll = ValidatorSpec.from_validators("coll", *validators)
 
-        def conform_coll(v: Iterable) -> Iterable:
+        def conform_coll(v: T_collinput) -> Iterable:
             return (out_type or type(v))(spec.conform(e) for e in v)  # type: ignore[call-arg]  # noqa
 
         return cls(
@@ -583,7 +593,7 @@ class CollSpec(Spec[T_input, T_conformed]):
             validate_coll=validate_coll,
         )
 
-    def validate(self, v: T_input) -> Iterator[ErrorDetails]:
+    def validate(self, v: Any) -> Iterator[ErrorDetails]:
         if self._validate_coll:
             yield from _enrich_errors(self._validate_coll.validate(v), self.tag)
 
@@ -591,27 +601,48 @@ class CollSpec(Spec[T_input, T_conformed]):
             yield from _enrich_errors(self._spec.validate(e), self.tag, i)
 
 
-# In Python 3.6, you cannot inherit directly from Generic with slotted classes:
-# https://github.com/python-attrs/attrs/issues/313
-@attr.s(auto_attribs=True, frozen=True, slots=sys.version_info >= (3, 7))
+@attr.s(auto_attribs=True, frozen=True, slots=_USE_SLOTS_FOR_GENERIC)
 class OptionalKey(Generic[T]):
     key: T
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
-class DictSpec(Spec[T_input, T_conformed]):
+T_mapinput = TypeVar("T_mapinput", bound=Mapping)
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=_USE_SLOTS_FOR_GENERIC)
+class DictSpec(Spec[T_mapinput, T_conformed]):
     tag: Tag
     _reqkeyspecs: Mapping[Any, Spec] = attr.ib(factory=dict)
     _optkeyspecs: Mapping[Any, Spec] = attr.ib(factory=dict)
-    conformer: Optional[Conformer[T_input, T_conformed]] = None
+    conformer: Optional[Conformer[T_mapinput, T_conformed]] = None
 
     @classmethod
+    @overload
+    def from_val(
+        cls,
+        tag: Optional[Tag],
+        kvspec: Mapping[str, SpecPredicate],
+        conformer: None = None,
+    ) -> Spec[T_mapinput, Mapping]:
+        ...
+
+    @classmethod  # noqa: F811
+    @overload
+    def from_val(
+        cls,
+        tag: Optional[Tag],
+        kvspec: Mapping[str, SpecPredicate],
+        conformer: Conformer[Mapping, T_conformed],
+    ) -> Spec[T_mapinput, T_conformed]:
+        ...
+
+    @classmethod  # noqa: F811
     def from_val(
         cls,
         tag: Optional[Tag],
         kvspec: Mapping[str, SpecPredicate],
         conformer: Optional[Conformer] = None,
-    ):
+    ) -> Spec:
         reqkeys = {}
         optkeys: MutableMapping[Any, Spec] = {}
         for k, v in kvspec.items():
@@ -639,7 +670,7 @@ class DictSpec(Spec[T_input, T_conformed]):
         )
 
     def validate(
-        self, d: T_input
+        self, d: Any
     ) -> Iterator[ErrorDetails]:  # pylint: disable=arguments-differ
         try:
             for k, vspec in self._reqkeyspecs.items():
@@ -683,7 +714,9 @@ class ObjectSpec(DictSpec[T_input, T_conformed]):
         """
         return super().from_val(tag, kvspec).with_conformer(conformer)
 
-    def validate(self, o) -> Iterator[ErrorDetails]:  # pylint: disable=arguments-differ
+    def validate(
+        self, o: Any
+    ) -> Iterator[ErrorDetails]:  # pylint: disable=arguments-differ
         for k, vspec in self._reqkeyspecs.items():
             if hasattr(o, k):
                 yield from _enrich_errors(vspec.validate(getattr(o, k)), self.tag, k)
@@ -701,11 +734,11 @@ class ObjectSpec(DictSpec[T_input, T_conformed]):
                 yield from _enrich_errors(vspec.validate(getattr(o, k)), self.tag, k)
 
 
-def _enum_conformer(e: EnumMeta) -> Conformer:
+def _enum_conformer(e: EnumMeta) -> Conformer[Any, EnumMeta]:
     """Create a conformer for Enum types which accepts Enum instances, Enum values,
     and Enum names."""
 
-    def conform_enum(v) -> Union[EnumMeta, Invalid]:
+    def conform_enum(v: Any) -> Union[EnumMeta, Invalid]:
         try:
             return e(v)
         except ValueError:
@@ -717,13 +750,13 @@ def _enum_conformer(e: EnumMeta) -> Conformer:
     return conform_enum
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.s(auto_attribs=True, frozen=True, slots=_USE_SLOTS_FOR_GENERIC)
 class SetSpec(Spec[T_input, T_conformed]):
     tag: Tag
     _values: Union[Set, FrozenSet]
     conformer: Optional[Conformer[T_input, T_conformed]] = None
 
-    def validate(self, v: T_input) -> Iterator[ErrorDetails]:
+    def validate(self, v: Any) -> Iterator[ErrorDetails]:
         if v not in self._values:
             yield ErrorDetails(
                 message=f"Value '{v}' not in '{self._values}'",
@@ -733,9 +766,26 @@ class SetSpec(Spec[T_input, T_conformed]):
             )
 
     @classmethod
+    @overload
+    def from_enum(
+        cls, tag: Optional[Tag], pred: EnumMeta, conformer: None = None
+    ) -> Spec[T_input, EnumMeta]:
+        ...
+
+    @classmethod  # noqa: F811
+    @overload
+    def from_enum(
+        cls,
+        tag: Optional[Tag],
+        pred: EnumMeta,
+        conformer: Conformer[T_input, T_conformed],
+    ) -> Spec[T_input, T_conformed]:
+        ...
+
+    @classmethod  # noqa: F811
     def from_enum(
         cls, tag: Optional[Tag], pred: EnumMeta, conformer: Optional[Conformer] = None
-    ):
+    ) -> Spec:
         return cls(
             tag or pred.__name__,
             frozenset(
@@ -752,7 +802,7 @@ class SetSpec(Spec[T_input, T_conformed]):
 T_conformed_tuple = TypeVar("T_conformed_tuple", bound=Union[Tuple, NamedTuple])
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.s(auto_attribs=True, frozen=True, slots=_USE_SLOTS_FOR_GENERIC)
 class TupleSpec(Spec[T_input, T_conformed]):
     tag: Tag
     _pred: Tuple[SpecPredicate, ...]
@@ -761,23 +811,44 @@ class TupleSpec(Spec[T_input, T_conformed]):
     _namedtuple: Optional[Type[NamedTuple]] = None
 
     @classmethod
+    @overload
+    def from_val(
+        cls,
+        tag: Optional[Tag],
+        pred: Tuple[SpecPredicate, ...],
+        conformer: None = None,
+    ) -> Spec[T_input, Union[Tuple, NamedTuple]]:
+        ...
+
+    @classmethod  # noqa: F811
+    @overload
+    def from_val(
+        cls,
+        tag: Optional[Tag],
+        pred: Tuple[SpecPredicate, ...],
+        conformer: Conformer[T_input, T_conformed],
+    ) -> Spec[T_input, T_conformed]:
+        ...
+
+    @classmethod  # noqa: F811
     def from_val(
         cls,
         tag: Optional[Tag],
         pred: Tuple[SpecPredicate, ...],
         conformer: Optional[Conformer] = None,
-    ) -> Spec[T_input, T_conformed]:
+    ) -> Spec:
         specs = tuple(make_spec(e_pred) for e_pred in pred)
 
         spec_tags = tuple(re.sub(_MUNGE_NAMES, "_", spec.tag) for spec in specs)
+        namedtuple_type: Optional[Type[NamedTuple]]
         if tag is not None and len(specs) == len(set(spec_tags)):
             namedtuple_type = namedtuple(  # type: ignore
                 re.sub(_MUNGE_NAMES, "_", tag), spec_tags
             )
         else:
-            namedtuple_type = None  # type: ignore
+            namedtuple_type = None
 
-        def conform_tuple(v: T_input) -> Union[Tuple, NamedTuple]:
+        def conform_tuple(v: Union[Tuple, NamedTuple]) -> Union[Tuple, NamedTuple]:
             return ((namedtuple_type and namedtuple_type._make) or tuple)(
                 spec.conform(v) for spec, v in zip(specs, v)
             )
@@ -787,11 +858,11 @@ class TupleSpec(Spec[T_input, T_conformed]):
             pred=pred,
             specs=specs,
             conformer=compose_conformers(conform_tuple, *filter(None, (conformer,))),
-            namedtuple=namedtuple_type,  # type: ignore
+            namedtuple=namedtuple_type,
         )
 
     def validate(
-        self, t: T_input
+        self, t: Any
     ) -> Iterator[ErrorDetails]:  # pylint: disable=arguments-differ
         try:
             if len(t) != len(self._specs):
