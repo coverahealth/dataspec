@@ -1021,7 +1021,7 @@ def type_spec(
 
 
 def type_spec(
-    tag=None, tp=object, conformer=None,
+    tag: Optional[Tag] = None, tp: Type = object, conformer: Optional[Conformer] = None
 ):
     """Return a spec that validates inputs are instances of tp."""
 
