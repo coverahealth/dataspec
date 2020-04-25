@@ -1,6 +1,7 @@
 import random
 import re
 import sys
+import uuid
 from datetime import date
 from enum import Enum
 from typing import Optional, Type
@@ -418,6 +419,13 @@ class TestDictSpecConformation:
 
 
 class TestObjectSpecValidation:
+    @pytest.mark.parametrize(
+        "pred", [{"id": str, s.opt("id"): int}, {s.opt("id"): int, "id": str},]
+    )
+    def test_dict_spec_definition(self, pred):
+        with pytest.raises(KeyError):
+            s.obj(pred)
+
     @attr.s(auto_attribs=True, frozen=True, slots=True)
     class Person:
         id: str
@@ -691,6 +699,182 @@ class TestTupleSpecConformation:
         assert "Chris" == conformed.first_name == conformed[0]
         assert "Rink" == conformed.last_name == conformed[1]
         assert 29 == conformed.age == conformed[2]
+
+
+class TestAllSpecValidation:
+    @pytest.fixture
+    def all_spec(self) -> Spec:
+        return s.all(
+            s.str(format_="uuid", conformer=uuid.UUID), lambda id_: id_.version == 4
+        )
+
+    @pytest.mark.parametrize(
+        "v",
+        [
+            "c5a28680-986f-4f0d-8187-80d1fbe22059",
+            "3BE59FF6-9C75-4027-B132-C9792D84547D",
+        ],
+    )
+    def test_all_validation(self, all_spec, v):
+        assert all_spec.is_valid(v)
+        assert uuid.UUID(v) == all_spec.conform(v)
+
+    @pytest.mark.parametrize(
+        "v",
+        [
+            "6281d852-ef4d-11e9-9002-4c327592fea9",
+            "0e8d7ceb-56e8-36d2-9b54-ea48d4bdea3f",
+            "10988ff4-136c-5ca7-ab35-a686a56c22c4",
+            "",
+            "5",
+            "abcde",
+            "ABCDe",
+            5,
+            3.14,
+            None,
+            {},
+            set(),
+            [],
+        ],
+    )
+    def test_all_failure(self, all_spec, v):
+        assert not all_spec.is_valid(v)
+        assert INVALID is all_spec.conform(v)
+
+
+class TestAllSpecConformation:
+    class YesNo(Enum):
+        YES = "Yes"
+        NO = "No"
+
+    @pytest.fixture
+    def all_spec(self) -> Spec:
+        return s.all(s.str(conformer=str.title), self.YesNo)
+
+    @pytest.mark.parametrize(
+        "v,expected",
+        [
+            ("yes", YesNo.YES),
+            ("Yes", YesNo.YES),
+            ("yES", YesNo.YES),
+            ("YES", YesNo.YES),
+            ("no", YesNo.NO),
+            ("No", YesNo.NO),
+            ("nO", YesNo.NO),
+            ("NO", YesNo.NO),
+        ],
+    )
+    def test_all_spec_conformation(self, all_spec: Spec, v, expected):
+        assert expected == all_spec.conform(v)
+
+
+class TestAnySpecValidation:
+    @pytest.fixture
+    def any_spec(self) -> Spec:
+        return s.any(s.is_num, s.is_str)
+
+    @pytest.mark.parametrize("v", ["5", 5, 3.14])
+    def test_any_validation(self, any_spec: Spec, v):
+        assert any_spec.is_valid(v)
+
+    @pytest.mark.parametrize("v", [None, {}, set(), []])
+    def test_any_validation_failure(self, any_spec: Spec, v):
+        assert not any_spec.is_valid(v)
+
+
+class TestAnySpecConformation:
+    @pytest.fixture
+    def spec(self) -> Spec:
+        return s.any(s.num("num"), s.str("numstr", regex=r"\d+", conformer=int))
+
+    @pytest.mark.parametrize("expected,v", [(5, "5"), (5, 5), (3.14, 3.14), (-10, -10)])
+    def test_conformation(self, spec: Spec, expected, v):
+        assert expected == spec.conform(v)
+
+    @pytest.mark.parametrize(
+        "v", [None, {}, set(), [], "500x", "Just a sentence", b"500", b"byteword"]
+    )
+    def test_conformation_failure(self, spec: Spec, v):
+        assert INVALID is spec.conform(v)
+        assert INVALID is spec.conform_valid(v)
+
+    @pytest.fixture
+    def tag_spec(self) -> Spec:
+        return s.any(
+            s.num("num"),
+            s.str("numstr", regex=r"\d+", conformer=int),
+            tag_conformed=True,
+        )
+
+    @pytest.mark.parametrize(
+        "expected,v",
+        [
+            (("numstr", 5), "5"),
+            (("num", 5), 5),
+            (("num", 3.14), 3.14),
+            (("num", -10), -10),
+        ],
+    )
+    def test_tagged_conformation(self, tag_spec: Spec, expected, v):
+        assert expected == tag_spec.conform(v)
+
+    @pytest.mark.parametrize(
+        "v", [None, {}, set(), [], "500x", "Just a sentence", b"500", b"byteword"]
+    )
+    def test_tagged_conformation_failure(self, tag_spec: Spec, v):
+        assert INVALID is tag_spec.conform(v)
+        assert INVALID is tag_spec.conform_valid(v)
+
+
+class TestAnySpecWithOuterConformation:
+    @pytest.fixture
+    def spec(self) -> Spec:
+        return s.any(
+            s.num("num"),
+            s.str("numstr", regex=r"\d+", conformer=int),
+            conformer=lambda v: v + 5,
+        )
+
+    @pytest.mark.parametrize(
+        "expected,v", [(10, "5"), (10, 5), (8.14, 3.14), (-5, -10)]
+    )
+    def test_conformation(self, spec: Spec, expected, v):
+        assert expected == spec.conform(v)
+
+    @pytest.mark.parametrize(
+        "v", [None, {}, set(), [], "500x", "Just a sentence", b"500", b"byteword"]
+    )
+    def test_conformation_failure(self, spec: Spec, v):
+        assert INVALID is spec.conform(v)
+        assert INVALID is spec.conform_valid(v)
+
+    @pytest.fixture
+    def tag_spec(self) -> Spec:
+        return s.any(
+            s.num("num"),
+            s.str("numstr", regex=r"\d+", conformer=int),
+            tag_conformed=True,
+            conformer=lambda v: v + 5,
+        )
+
+    @pytest.mark.parametrize(
+        "expected,v",
+        [
+            (("numstr", 10), "5"),
+            (("num", 10), 5),
+            (("num", 8.14), 3.14),
+            (("num", -5), -10),
+        ],
+    )
+    def test_tagged_conformation(self, tag_spec: Spec, expected, v):
+        assert expected == tag_spec.conform(v)
+
+    @pytest.mark.parametrize(
+        "v", [None, {}, set(), [], "500x", "Just a sentence", b"500", b"byteword"]
+    )
+    def test_tagged_conformation_failure(self, tag_spec: Spec, v):
+        assert INVALID is tag_spec.conform(v)
+        assert INVALID is tag_spec.conform_valid(v)
 
 
 class TestTypeSpec:

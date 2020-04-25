@@ -7,11 +7,12 @@ from dataspec.base import (
     SpecPredicate,
     Tag,
     ValidationError,
-    make_spec,
-)
-from dataspec.factories import (
     all_spec,
     any_spec,
+    make_spec,
+    merge_spec,
+)
+from dataspec.factories import (
     blankable_spec,
     bool_spec,
     bytes_spec,
@@ -114,6 +115,7 @@ class SpecAPI:
     email = staticmethod(email_spec)
     every = staticmethod(every_spec)
     inst = staticmethod(datetime_spec)
+    merge = staticmethod(merge_spec)
     nilable = staticmethod(nilable_spec)
     num = staticmethod(num_spec)
     obj = staticmethod(obj_spec)

@@ -3,7 +3,7 @@ import inspect
 import re
 import sys
 from abc import ABC, abstractmethod
-from collections import namedtuple
+from collections import defaultdict, namedtuple
 from enum import EnumMeta
 from itertools import chain
 from typing import (
@@ -26,7 +26,6 @@ from typing import (
     TypeVar,
     Union,
     cast,
-    overload,
 )
 
 import attr
@@ -564,15 +563,13 @@ class DictSpec(Spec):
                     raise KeyError(
                         f"Optional key '{k.key}' duplicates key already defined in required keys"
                     )
-                else:
-                    optkeys[k.key] = make_spec(v)
+                optkeys[k.key] = make_spec(v)
             else:
                 if k in optkeys:
                     raise KeyError(
                         f"Required key '{k}' duplicates key already defined in optional keys"
                     )
-                else:
-                    reqkeys[k] = make_spec(v)
+                reqkeys[k] = make_spec(v)
 
         def conform_mapping(d: Mapping) -> Mapping:
             conformed_d = {}
@@ -618,36 +615,73 @@ class DictSpec(Spec):
             if k in d:
                 yield from _enrich_errors(vspec.validate(d[k]), self.tag, k)
 
+    # pylint: disable=protected-access
+    @classmethod
     def merge(
-        self,
-        tag_or_pred: Union[Tag, "DictSpec"],
-        *others: "DictSpec",
+        cls,
+        tag: Optional[Tag],
+        *specs: "DictSpec",
         conformer: Optional[Conformer] = None,
     ) -> Spec:
-        tag, others = tag_maybe(tag_or_pred, *others)
+        assert len(specs) >= 2, "Must merge at least two Specs"
 
-        map_pred: MutableMapping[Hashable, SpecPredicate] = {
-            **self._reqkeyspecs,
-            **{OptionalKey(k): v for k, v in self._optkeyspecs.items()},
-        }
-        for other in others:
-            for k, pred in other._reqkeyspecs.items():
-                if k in map_pred:
-                    pass
-                else:
-                    map_pred[k] = pred
+        map_pred: MutableMapping[Hashable, List[SpecPredicate]] = defaultdict(list)
+        for spec in specs:
+            for k, pred in spec._reqkeyspecs.items():
+                map_pred[k].append(pred)
 
-            for k, pred in other._optkeyspecs.items():
-                if k in map_pred:
-                    pass
-                else:
-                    map_pred[OptionalKey(k)] = pred
+            for k, pred in spec._optkeyspecs.items():
+                map_pred[OptionalKey(k)].append(pred)
 
-        return self.from_val(
-            tag or f"merge-of-{'-'.join(spec.tag for spec in others)}",
-            map_pred,
+        return cls.from_val(
+            tag or f"merge-of-{'-'.join(spec.tag for spec in specs)}",
+            {k: all_spec(str(k), *v) for k, v in map_pred.items()},  # type: ignore[arg-type]  # noqa: F821
             conformer=conformer,
         )
+
+
+def merge_spec(
+    tag_or_pred: Union[Tag, SpecPredicate],
+    *preds: SpecPredicate,
+    conformer: Optional[Conformer] = None,
+) -> Spec:
+    """
+    Merge two or more mapping Specs into a single new Spec.
+
+    Mapping Specs will be merged in the order they are provided. Individual key Specs
+    whose keys appear more than one input Spec will be merged as via
+    :py:meth:`dataspec.SpecAPI.all` in the order they are passed into this function.
+
+    If no Specs or Spec predicates are given, a :py:class:`ValueError` will be raised.
+    If only one Spec or Spec predicate is provided, it will be passed to
+    :py:func:`dataspec.s` with the given ``tag`` and ``conformer`` and the value returned
+    without merging. If any Specs or Spec predicates are provided which are not mapping
+    Specs or which cannot be coerced to mapping Specs, a :py:class:`TypeError` will be
+    raised.
+
+    :param tag: an optional tag for the resulting spec
+    :param preds: one or more mapping Specs or values which can be converted into a
+        mapping Spec
+    :param conformer: an optional conformer for the value
+    :return: a single mapping Spec which is the union of all input Specs
+    """
+    tag, preds = tag_maybe(tag_or_pred, *preds)
+
+    if not preds:
+        raise ValueError("Must provide at least one mapping Spec to merge")
+
+    if len(preds) == 1:
+        return make_spec(*filter(None, (tag,)), preds[0], conformer=conformer)
+
+    specs = [make_spec(pred) for pred in preds]
+
+    for spec in specs:
+        if not isinstance(spec, DictSpec):
+            raise TypeError(f"Can only merge mapping spec types, not '{type(spec)}'")
+
+    return DictSpec.merge(
+        tag, *cast("Tuple[DictSpec, ...]", specs), conformer=conformer
+    )
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -672,15 +706,13 @@ class ObjectSpec(Spec):
                     raise KeyError(
                         f"Optional attribute '{k.key}' duplicates key already defined in required attributes"
                     )
-                else:
-                    optattrs[k.key] = make_spec(v)
+                optattrs[k.key] = make_spec(v)
             else:
                 if k in optattrs:
                     raise KeyError(
                         f"Required attribute '{k}' duplicates key already defined in optional attributes"
                     )
-                else:
-                    reqattrs[k] = make_spec(v)
+                reqattrs[k] = make_spec(v)
 
         return cls(
             tag or "obj",
@@ -689,7 +721,7 @@ class ObjectSpec(Spec):
             conformer=conformer,
         )
 
-    def validate(self, o) -> Iterator[ErrorDetails]:
+    def validate(self, o) -> Iterator[ErrorDetails]:  # pylint: disable=arguments-differ
         for k, vspec in self._reqattrspecs.items():
             if hasattr(o, k):
                 yield from _enrich_errors(vspec.validate(getattr(o, k)), self.tag, k)
@@ -753,6 +785,9 @@ class SetSpec(Spec):
                 _enum_conformer(pred), *filter(None, (conformer,)),
             ),
         )
+
+
+_MUNGE_NAMES = re.compile(r"[\s|-]")
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -867,7 +902,118 @@ def compose_spec_conformers(
     )
 
 
-_MUNGE_NAMES = re.compile(r"[\s|-]")
+def all_spec(*preds: SpecPredicate, conformer: Optional[Conformer] = None,) -> Spec:
+    """
+    Return a Spec which validates input values against all of the input Specs or
+    spec predicates.
+
+    For each Spec for which the input value is successfully validated, the value is
+    successively passed to the Spec's :py:meth:`dataspec.Spec.conform_valid` method.
+
+    The returned Spec's :py:meth:`dataspec.Spec.validate` method will emit a stream
+    of :py:class:`dataspec.ErrorDetails`` from the first failing constituent Spec.
+    :py:class:`dataspec.ErrorDetails` emitted from Specs after a failing Spec will
+    not be emitted, because the failing Spec's :py:meth:`dataspec.Spec.conform``
+    would not successfully conform the value.
+
+    The returned Spec's :py:meth:`dataspec.Spec.conform` method is the composition
+    of all of the input Spec's ``conform`` methods.
+
+    :param tag: an optional tag for the resulting spec
+    :param preds: one or more Specs or values which can be converted into a Spec
+    :param conformer: an optional conformer which will be applied to the final
+        conformed value produced by the input Specs conformers
+    :return: a Spec
+    """
+    tag, preds = tag_maybe(*preds)  # pylint: disable=no-value-for-parameter
+    specs = [make_spec(pred) for pred in preds]
+
+    def _all_valid(e) -> Iterator[ErrorDetails]:
+        """Validate e against successive conformations to spec in specs."""
+
+        for spec in specs:
+            errors = []
+            for error in spec.validate(e):
+                errors.append(error)
+            if errors:
+                yield from errors
+                return
+            e = spec.conform_valid(e)
+
+    return ValidatorSpec(
+        tag or "all",
+        _all_valid,
+        conformer=compose_spec_conformers(*specs, conform_final=conformer),
+    )
+
+
+def any_spec(
+    *preds: SpecPredicate,
+    tag_conformed: bool = False,
+    conformer: Optional[Conformer] = None,
+) -> Spec:
+    """
+    Return a Spec which validates input values against any one of an arbitrary
+    number of input Specs.
+
+    The returned Spec validates input values against the input Specs in the order
+    they are passed into this function.
+
+    If the returned Spec fails to validate the input value, the
+    :py:meth:`dataspec.Spec.validate` method will emit a stream of
+    :py:class:`dataspec.ErrorDetails` from all of failing constituent Specs. If any of
+    the constituent Specs successfully validates the input value, then no
+    :py:class:`dataspec.ErrorDetails` will be emitted by the
+    :py:meth:`dataspec.Spec.validate` method.
+
+    The conformer for the returned Spec will select the conformer for the first
+    contituent Spec which successfully validates the input value. If a ``conformer``
+    is specified for this Spec, that conformer will be applied after the successful
+    Spec's conformer. If ``tag_conformed`` is specified, the final conformed value
+    from both conformers will be wrapped in a tuple, where the first element is the
+    tag of the successful Spec and the second element is the final conformed value.
+    If ``tag_conformed`` is not specified (which is the default), the conformer will
+    emit the conformed value directly.
+
+    :param tag: an optional tag for the resulting spec
+    :param preds: one or more Specs or values which can be converted into a Spec
+    :param tag_conformed: if :py:obj:`True`, the conformed value will be wrapped in a
+        2-tuple where the first element is the successful spec and the second element
+        is the conformed value; if :py:obj:`False`, return only the conformed value
+    :param conformer: an optional conformer for the value
+    :return: a Spec
+    """
+    tag, preds = tag_maybe(*preds)  # pylint: disable=no-value-for-parameter
+    specs = [make_spec(pred) for pred in preds]
+
+    def _any_valid(e) -> Iterator[ErrorDetails]:
+        errors = []
+        for spec in specs:
+            spec_errors = list(spec.validate(e))
+            if spec_errors:
+                errors.extend(spec_errors)
+            else:
+                return
+
+        yield from errors
+
+    def _conform_any(e):
+        for spec in specs:
+            spec_errors = list(spec.validate(e))
+            if spec_errors:
+                continue
+
+            conformed = spec.conform_valid(e)
+            assert conformed is not INVALID
+            if conformer is not None:
+                conformed = conformer(conformed)
+            if tag_conformed:
+                conformed = (spec.tag, conformed)
+            return conformed
+
+        return INVALID
+
+    return ValidatorSpec(tag or "any", _any_valid, conformer=_conform_any)
 
 
 def _complement(pred: PredicateFn) -> PredicateFn:
