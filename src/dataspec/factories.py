@@ -5,6 +5,7 @@ import uuid
 from datetime import date, datetime, time
 from email.headerregistry import Address as EmailAddress
 from functools import partial
+from ipaddress import IPv4Address, IPv6Address
 from typing import (
     AbstractSet,
     Any,
@@ -919,6 +920,161 @@ def email_spec(
 
     return ValidatorSpec.from_validators(
         tag, is_str, str_contains_email, conformer=conformer
+    )
+
+
+def ip_addr_spec(
+    tag: Optional[Tag] = None,
+    query: Optional[SpecPredicate] = None,
+    types: Tuple[
+        Union[Type[str], Type[int], Type[IPv4Address], Type[IPv6Address]], ...
+    ] = (str, int, IPv4Address, IPv6Address),
+    conformer: Optional[Conformer] = None,
+    **kwargs,
+) -> Spec:
+    """
+    Return a spec that can validate IP addresses against common rules.
+
+    IP address specs always verify that input values are strings and that they can
+    be successfully parsed by :py:func:`urllib.parse.urlparse`.
+
+    URL specs can specify a new or existing Spec or spec predicate value to validate
+    the query string value produced by calling :py:func:`urllib.parse.parse_qs` on the
+    :py:attr:`urllib.parse.ParseResult.query` attribute of the parsed URL result.
+
+    Other restrictions can be applied by passing any one of three different keyword
+    arguments for any of the fields (excluding :py:attr:`urllib.parse.ParseResult.query`)
+    of :py:class:`urllib.parse.ParseResult`. For example, to specify restrictions on the
+    ``hostname`` field, you could use the following keywords:
+
+     * ``hostname`` accepts any value (including :py:obj:`None`) and checks for an
+       exact match of the keyword argument value
+     * ``hostname_in`` takes a :py:class:``set`` or :py:class:``frozenset`` and
+       validates that the `hostname`` field is an exact match with one of the
+       elements of the set
+     * ``hostname_regex`` takes a :py:class:``str``, creates a Regex pattern from
+       that string, and validates that ``hostname`` is a match (by
+       :py:func:`re.fullmatch`) with the given pattern
+
+    The value :py:obj:`None` can be used for comparison in all cases. Note that default
+    the values for fields of :py:class:`urllib.parse.ParseResult` vary by field, so
+    using None may produce unexpected results.
+
+    At most only one restriction can be applied to any given field for the
+    :py:class:`urllib.parse.ParseResult`. Specifying more than one restriction for
+    a field will produce a :py:exc:`ValueError`.
+
+    At least one restriction must be specified to create a URL string Spec.
+    Attempting to create a URL Spec without specifying a restriction will produce a
+    :py:exc:`ValueError`.
+
+    Providing a keyword argument for a non-existent field of
+    :py:class:`urllib.parse.ParseResult` will produce a :py:exc:`ValueError`.
+
+    :param tag: an optional tag for the resulting spec
+    :param query: an optional spec for the :py:class:`dict` created by calling
+        :py:func:`urllib.parse.parse_qs` on the :py:attr:`urllib.parse.ParseResult.query`
+        attribute of the parsed URL
+    :param scheme: if specified, require an exact match for ``scheme``
+    :param scheme_in: if specified, require ``scheme`` to match at least one value in the set
+    :param schema_regex: if specified, require ``scheme`` to match the regex pattern
+    :param netloc: if specified, require an exact match for ``netloc``
+    :param netloc_in: if specified, require ``netloc`` to match at least one value in the set
+    :param netloc_regex: if specified, require ``netloc`` to match the regex pattern
+    :param path: if specified, require an exact match for ``path``
+    :param path_in: if specified, require ``path`` to match at least one value in the set
+    :param path_regex: if specified, require ``path`` to match the regex pattern
+    :param params: if specified, require an exact match for ``params``
+    :param params_in: if specified, require ``params`` to match at least one value in the set
+    :param params_regex: if specified, require ``params`` to match the regex pattern
+    :param fragment: if specified, require an exact match for ``fragment``
+    :param fragment_in: if specified, require ``fragment`` to match at least one value in the set
+    :param fragment_regex: if specified, require ``fragment`` to match the regex pattern
+    :param username: if specified, require an exact match for ``username``
+    :param username_in: if specified, require ``username`` to match at least one value in the set
+    :param username_regex: if specified, require ``username`` to match the regex pattern
+    :param password: if specified, require an exact match for ``password``
+    :param password_in: if specified, require ``password`` to match at least one value in the set
+    :param password_regex: if specified, require ``password`` to match the regex pattern
+    :param hostname: if specified, require an exact match for ``hostname``
+    :param hostname_in: if specified, require ``hostname`` to match at least one value in the set
+    :param hostname_regex: if specified, require ``hostname`` to match the regex pattern
+    :param port: if specified, require an exact match for ``port``
+    :param port_in: if specified, require ``port`` to match at least one value in the set
+    :param conformer: an optional conformer for the value
+    :return: a Spec which can validate that a string contains a URL
+    """
+
+    @pred_to_validator("Value '{value}' is not coercible to an IP address", complement=True)
+    def is_coercible_to_ip_addr(s: Any) -> bool:
+        return isinstance(s, types)
+
+    validators: List[Union[ValidatorFn, ValidatorSpec]] = [is_coercible_to_ip_addr]
+
+    child_validators = []
+    for url_attr in _URL_RESULT_FIELDS:
+        in_attr = kwargs.pop(f"{url_attr}_in", _IGNORE_OBJ_PARAM)
+        regex_attr = kwargs.pop(f"{url_attr}_regex", _IGNORE_OBJ_PARAM)
+        exact_attr = kwargs.pop(f"{url_attr}", _IGNORE_OBJ_PARAM)
+
+        if (
+            sum(
+                int(v is not _IGNORE_OBJ_PARAM)
+                for v in [in_attr, regex_attr, exact_attr]
+            )
+            > 1
+        ):
+            raise ValueError(
+                f"URL specs may only specify one of {url_attr}, "
+                f"{url_attr}_in, and {url_attr}_regex for any URL attribute"
+            )
+
+        attr_validator = _obj_attr_validator(
+            "URL",
+            url_attr,
+            exact_attr,
+            regex_attr,
+            in_attr,
+            disallowed_attrs_regex=_URL_DISALLOWED_REGEX_FIELDS,
+        )
+        if attr_validator is not None:
+            child_validators.append(attr_validator)
+
+    if query is not None:
+        query_spec: Optional[Spec] = make_spec(query)
+    else:
+        query_spec = None
+
+    if kwargs:
+        raise ValueError(f"Unused keyword arguments: {kwargs}")
+
+    if query_spec is None and not child_validators:
+        raise ValueError("URL specs must include at least one validation rule")
+
+    def validate_parse_result(v: ParseResult) -> Iterator[ErrorDetails]:
+        for validate in child_validators:
+            yield from validate(v)
+
+        if query_spec is not None:
+            query_dict = parse_qs(v.query)
+            yield from query_spec.validate(query_dict)
+
+    def validate_url(s: str) -> Iterator[ErrorDetails]:
+        try:
+            url = urlparse(s)
+        except ValueError as e:
+            yield ErrorDetails(
+                message=f"String does not contain a valid URL: {e}",
+                pred=validate_url,
+                value=s,
+            )
+        else:
+            yield from validate_parse_result(url)
+
+    validators.append(validate_url)
+
+    return ValidatorSpec.from_validators(
+        tag or "url_str", *validators, conformer=conformer
     )
 
 
