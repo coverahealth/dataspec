@@ -62,7 +62,7 @@ def _fdef(
     """Wrap a function ``f`` and validate its arguments, keyword arguments, and return
     value with Specs, if any are given."""
     argspecs = s(argpreds) if argpreds else None
-    kwargspecs = s(kwargpreds) if kwargpreds else None
+    kwargspecs = s(kwargpreds) if kwargpreds else None  # type: ignore
     retspec = s(retpred) if retpred else None
 
     assert [argspecs, kwargspecs, retspec].count(

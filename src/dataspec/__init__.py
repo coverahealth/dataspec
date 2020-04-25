@@ -11,8 +11,9 @@ from dataspec.base import (
     ValidationError,
     ValidatorFn,
     pred_to_validator,
+    tag_maybe,
 )
-from dataspec.factories import register_str_format, register_str_format_spec, tag_maybe
+from dataspec.factories import register_str_format, register_str_format_spec
 
 __all__ = [
     "INVALID",

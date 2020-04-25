@@ -11,6 +11,7 @@ from typing import (
     Callable,
     FrozenSet,
     Generic,
+    Hashable,
     Iterable,
     Iterator,
     List,
@@ -25,9 +26,14 @@ from typing import (
     TypeVar,
     Union,
     cast,
+    overload,
 )
 
 import attr
+
+# In Python 3.6, you cannot inherit directly from Generic with slotted classes:
+# https://github.com/python-attrs/attrs/issues/313
+_USE_SLOTS_FOR_GENERIC = sys.version_info >= (3, 7)
 
 T = TypeVar("T")
 V = TypeVar("V")
@@ -48,12 +54,14 @@ INVALID = Invalid()
 
 
 Conformer = Callable[[T], Union[V, Invalid]]
+ObjectSpecKey = Union[str, "OptionalKey[str]"]
 PredicateFn = Callable[[Any], bool]
 ValidatorFn = Callable[[Any], Iterable["ErrorDetails"]]
 Tag = str
 
 SpecPredicate = Union[  # type: ignore
-    Mapping[Any, "SpecPredicate"],  # type: ignore
+    Mapping[Hashable, "SpecPredicate"],  # type: ignore
+    Mapping[ObjectSpecKey, "SpecPredicate"],  # type: ignore
     Tuple["SpecPredicate", ...],  # type: ignore
     List["SpecPredicate"],  # type: ignore
     FrozenSet[Any],
@@ -294,6 +302,15 @@ class Spec(ABC):
         return attr.evolve(self, tag=tag)
 
 
+def tag_maybe(
+    maybe_tag: Union[Tag, T], *args: T
+) -> Tuple[Optional[str], Tuple[T, ...]]:
+    """Return the Spec tag and the remaining arguments if a tag is given, else return
+    the arguments."""
+    tag = maybe_tag if isinstance(maybe_tag, str) else None
+    return tag, (cast("Tuple[T, ...]", (maybe_tag, *args)) if tag is None else args)
+
+
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class ValidatorSpec(Spec):
     """Validator Specs yield richly detailed errors from their validation functions and
@@ -321,7 +338,7 @@ class ValidatorSpec(Spec):
         tag: Tag,
         *preds: Union[ValidatorFn, "ValidatorSpec"],
         conformer: Optional[Conformer] = None,
-    ) -> "ValidatorSpec":
+    ) -> Spec:
         """Return a single Validator spec from the composition of multiple validator
         functions or ValidatorSpec instances."""
         assert len(preds) > 0, "At least on predicate must be specified"
@@ -378,27 +395,31 @@ class PredicateSpec(Spec):
             )
 
 
+CollSpecKwargs = Mapping[str, Union[bool, int, Type, None]]
+
+
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class CollSpec(Spec):
     tag: Tag
     _spec: Spec
     conformer: Optional[Conformer] = None
     _out_type: Optional[Type] = None
-    _validate_coll: Optional[ValidatorSpec] = None
+    _validate_coll: Optional[Spec] = None
 
     @classmethod  # noqa: MC0001
     def from_val(
         cls,
         tag: Optional[Tag],
-        sequence: Sequence[Union[SpecPredicate, Mapping[str, Any]]],
+        sequence: Sequence[Union[SpecPredicate, CollSpecKwargs]],
         conformer: Conformer = None,
-    ):
+    ) -> Spec:
         # pylint: disable=too-many-branches,too-many-locals
-        spec = make_spec(sequence[0])
-        validate_coll: Optional[ValidatorSpec] = None
+        spec = make_spec(cast(SpecPredicate, sequence[0]))
+        validate_coll: Optional[Spec] = None
 
+        kwargs: CollSpecKwargs
         try:
-            kwargs = sequence[1]
+            kwargs = cast(CollSpecKwargs, sequence[1])
             if not isinstance(kwargs, dict):
                 raise TypeError("Collection spec options must be a dict")
         except IndexError:
@@ -406,12 +427,12 @@ class CollSpec(Spec):
 
         validators = []
 
-        allow_str: bool = kwargs.get("allow_str", False)  # type: ignore
-        maxlength: Optional[int] = kwargs.get("maxlength", None)  # type: ignore
-        minlength: Optional[int] = kwargs.get("minlength", None)  # type: ignore
-        count: Optional[int] = kwargs.get("count", None)  # type: ignore
-        type_: Optional[Type] = kwargs.get("kind", None)  # type: ignore
-        out_type: Optional[Type] = kwargs.get("into", None)  # type: ignore
+        allow_str: bool = kwargs.get("allow_str", False)
+        maxlength: Optional[int] = kwargs.get("maxlength", None)
+        minlength: Optional[int] = kwargs.get("minlength", None)
+        count: Optional[int] = kwargs.get("count", None)
+        type_: Optional[Type] = kwargs.get("kind", None)
+        out_type: Optional[Type] = kwargs.get("into", None)
 
         if not allow_str and type_ is None:
 
@@ -516,9 +537,7 @@ class CollSpec(Spec):
             yield from _enrich_errors(self._spec.validate(e), self.tag, i)
 
 
-# In Python 3.6, you cannot inherit directly from Generic with slotted classes:
-# https://github.com/python-attrs/attrs/issues/313
-@attr.s(auto_attribs=True, frozen=True, slots=sys.version_info >= (3, 7))
+@attr.s(auto_attribs=True, frozen=True, slots=_USE_SLOTS_FOR_GENERIC)
 class OptionalKey(Generic[T]):
     key: T
 
@@ -526,24 +545,34 @@ class OptionalKey(Generic[T]):
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class DictSpec(Spec):
     tag: Tag
-    _reqkeyspecs: Mapping[Any, Spec] = attr.ib(factory=dict)
-    _optkeyspecs: Mapping[Any, Spec] = attr.ib(factory=dict)
+    _reqkeyspecs: Mapping[Hashable, Spec] = attr.ib(factory=dict)
+    _optkeyspecs: Mapping[Hashable, Spec] = attr.ib(factory=dict)
     conformer: Optional[Conformer] = None
 
     @classmethod
     def from_val(
         cls,
         tag: Optional[Tag],
-        kvspec: Mapping[str, SpecPredicate],
+        kvspec: Mapping[Hashable, SpecPredicate],
         conformer: Optional[Conformer] = None,
-    ):
+    ) -> Spec:
         reqkeys = {}
         optkeys: MutableMapping[Any, Spec] = {}
         for k, v in kvspec.items():
             if isinstance(k, OptionalKey):
-                optkeys[k.key] = make_spec(v)
+                if k.key in reqkeys:
+                    raise KeyError(
+                        f"Optional key '{k.key}' duplicates key already defined in required keys"
+                    )
+                else:
+                    optkeys[k.key] = make_spec(v)
             else:
-                reqkeys[k] = make_spec(v)
+                if k in optkeys:
+                    raise KeyError(
+                        f"Required key '{k}' duplicates key already defined in optional keys"
+                    )
+                else:
+                    reqkeys[k] = make_spec(v)
 
         def conform_mapping(d: Mapping) -> Mapping:
             conformed_d = {}
@@ -589,25 +618,79 @@ class DictSpec(Spec):
             if k in d:
                 yield from _enrich_errors(vspec.validate(d[k]), self.tag, k)
 
+    def merge(
+        self,
+        tag_or_pred: Union[Tag, "DictSpec"],
+        *others: "DictSpec",
+        conformer: Optional[Conformer] = None,
+    ) -> Spec:
+        tag, others = tag_maybe(tag_or_pred, *others)
 
-class ObjectSpec(DictSpec):
+        map_pred: MutableMapping[Hashable, SpecPredicate] = {
+            **self._reqkeyspecs,
+            **{OptionalKey(k): v for k, v in self._optkeyspecs.items()},
+        }
+        for other in others:
+            for k, pred in other._reqkeyspecs.items():
+                if k in map_pred:
+                    pass
+                else:
+                    map_pred[k] = pred
+
+            for k, pred in other._optkeyspecs.items():
+                if k in map_pred:
+                    pass
+                else:
+                    map_pred[OptionalKey(k)] = pred
+
+        return self.from_val(
+            tag or f"merge-of-{'-'.join(spec.tag for spec in others)}",
+            map_pred,
+            conformer=conformer,
+        )
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class ObjectSpec(Spec):
+    tag: Tag
+    _reqattrspecs: Mapping[str, Spec] = attr.ib(factory=dict)
+    _optattrspecs: Mapping[str, Spec] = attr.ib(factory=dict)
+    conformer: Optional[Conformer] = None
+
     @classmethod
     def from_val(
         cls,
         tag: Optional[Tag],
-        kvspec: Mapping[str, SpecPredicate],
+        kvspec: Mapping[ObjectSpecKey, SpecPredicate],
         conformer: Optional[Conformer] = None,
-    ):
-        """
-        Return a Spec for an arbitrary object instance.
+    ) -> Spec:
+        reqattrs = {}
+        optattrs: MutableMapping[str, Spec] = {}
+        for k, v in kvspec.items():
+            if isinstance(k, OptionalKey):
+                if k.key in reqattrs:
+                    raise KeyError(
+                        f"Optional attribute '{k.key}' duplicates key already defined in required attributes"
+                    )
+                else:
+                    optattrs[k.key] = make_spec(v)
+            else:
+                if k in optattrs:
+                    raise KeyError(
+                        f"Required attribute '{k}' duplicates key already defined in optional attributes"
+                    )
+                else:
+                    reqattrs[k] = make_spec(v)
 
-        Overwrite the default conformer provided for ``DictSpec`` s, since it does not
-        make sense for objects.
-        """
-        return super().from_val(tag, kvspec).with_conformer(conformer)
+        return cls(
+            tag or "obj",
+            reqattrspecs=reqattrs,
+            optattrspecs=optattrs,
+            conformer=conformer,
+        )
 
-    def validate(self, o) -> Iterator[ErrorDetails]:  # pylint: disable=arguments-differ
-        for k, vspec in self._reqkeyspecs.items():
+    def validate(self, o) -> Iterator[ErrorDetails]:
+        for k, vspec in self._reqattrspecs.items():
             if hasattr(o, k):
                 yield from _enrich_errors(vspec.validate(getattr(o, k)), self.tag, k)
             else:
@@ -619,7 +702,7 @@ class ObjectSpec(DictSpec):
                     path=[k],
                 )
 
-        for k, vspec in self._optkeyspecs.items():
+        for k, vspec in self._optattrspecs.items():
             if hasattr(o, k):
                 yield from _enrich_errors(vspec.validate(getattr(o, k)), self.tag, k)
 

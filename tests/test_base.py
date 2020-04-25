@@ -248,6 +248,13 @@ class TestCollSpecConformation:
 
 
 class TestDictSpecValidation:
+    @pytest.mark.parametrize(
+        "pred", [{"id": str, s.opt("id"): int}, {s.opt("id"): int, "id": str},]
+    )
+    def test_dict_spec_definition(self, pred):
+        with pytest.raises(KeyError):
+            s(pred)
+
     @pytest.fixture
     def dict_spec(self) -> Spec:
         return s(

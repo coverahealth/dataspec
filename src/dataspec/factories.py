@@ -43,18 +43,8 @@ from dataspec.base import (
     compose_spec_conformers,
     make_spec,
     pred_to_validator,
+    tag_maybe, ObjectSpecKey,
 )
-
-T = TypeVar("T")
-
-
-def tag_maybe(
-    maybe_tag: Union[Tag, T], *args: T
-) -> Tuple[Optional[str], Tuple[T, ...]]:
-    """Return the Spec tag and the remaining arguments if a tag is given, else return
-    the arguments."""
-    tag = maybe_tag if isinstance(maybe_tag, str) else None
-    return tag, (cast("Tuple[T, ...]", (maybe_tag, *args)) if tag is None else args)
 
 
 def any_spec(
@@ -1016,9 +1006,12 @@ def obj_spec(
     assert len(preds) == 1, "Only one predicate allowed"
     return ObjectSpec.from_val(
         tag or "object",
-        cast(Mapping[str, SpecPredicate], preds[0]),
+        cast(Mapping[ObjectSpecKey, SpecPredicate], preds[0]),
         conformer=conformer,
     )
+
+
+T = TypeVar("T")
 
 
 def opt_key(k: T) -> OptionalKey:
