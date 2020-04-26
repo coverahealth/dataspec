@@ -303,7 +303,7 @@ class Spec(ABC):
 
 def tag_maybe(
     maybe_tag: Union[Tag, T], *args: T
-) -> Tuple[Optional[str], Tuple[T, ...]]:
+) -> Tuple[Optional[Tag], Tuple[T, ...]]:
     """Return the Spec tag and the remaining arguments if a tag is given, else return
     the arguments."""
     tag = maybe_tag if isinstance(maybe_tag, str) else None
@@ -635,53 +635,9 @@ class DictSpec(Spec):
 
         return cls.from_val(
             tag or f"merge-of-{'-'.join(spec.tag for spec in specs)}",
-            {k: all_spec(str(k), *v) for k, v in map_pred.items()},  # type: ignore[arg-type]  # noqa: F821
+            {k: all_spec(str(k), *v) for k, v in map_pred.items()},
             conformer=conformer,
         )
-
-
-def merge_spec(
-    tag_or_pred: Union[Tag, SpecPredicate],
-    *preds: SpecPredicate,
-    conformer: Optional[Conformer] = None,
-) -> Spec:
-    """
-    Merge two or more mapping Specs into a single new Spec.
-
-    Mapping Specs will be merged in the order they are provided. Individual key Specs
-    whose keys appear more than one input Spec will be merged as via
-    :py:meth:`dataspec.SpecAPI.all` in the order they are passed into this function.
-
-    If no Specs or Spec predicates are given, a :py:class:`ValueError` will be raised.
-    If only one Spec or Spec predicate is provided, it will be passed to
-    :py:func:`dataspec.s` with the given ``tag`` and ``conformer`` and the value returned
-    without merging. If any Specs or Spec predicates are provided which are not mapping
-    Specs or which cannot be coerced to mapping Specs, a :py:class:`TypeError` will be
-    raised.
-
-    :param tag: an optional tag for the resulting spec
-    :param preds: one or more mapping Specs or values which can be converted into a
-        mapping Spec
-    :param conformer: an optional conformer for the value
-    :return: a single mapping Spec which is the union of all input Specs
-    """
-    tag, preds = tag_maybe(tag_or_pred, *preds)
-
-    if not preds:
-        raise ValueError("Must provide at least one mapping Spec to merge")
-
-    if len(preds) == 1:
-        return make_spec(*filter(None, (tag,)), preds[0], conformer=conformer)
-
-    specs = [make_spec(pred) for pred in preds]
-
-    for spec in specs:
-        if not isinstance(spec, DictSpec):
-            raise TypeError(f"Can only merge mapping spec types, not '{type(spec)}'")
-
-    return DictSpec.merge(
-        tag, *cast("Tuple[DictSpec, ...]", specs), conformer=conformer
-    )
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -902,7 +858,11 @@ def compose_spec_conformers(
     )
 
 
-def all_spec(*preds: SpecPredicate, conformer: Optional[Conformer] = None,) -> Spec:
+def all_spec(
+    tag_or_pred: Union[Tag, SpecPredicate],
+    *preds: SpecPredicate,
+    conformer: Optional[Conformer] = None,
+) -> Spec:
     """
     Return a Spec which validates input values against all of the input Specs or
     spec predicates.
@@ -919,13 +879,26 @@ def all_spec(*preds: SpecPredicate, conformer: Optional[Conformer] = None,) -> S
     The returned Spec's :py:meth:`dataspec.Spec.conform` method is the composition
     of all of the input Spec's ``conform`` methods.
 
-    :param tag: an optional tag for the resulting spec
-    :param preds: one or more Specs or values which can be converted into a Spec
+    If no Specs or Spec predicates are given, a :py:class:`ValueError` will be raised.
+    If only one Spec or Spec predicate is provided, it will be passed to
+    :py:func:`dataspec.s` with the given ``tag`` and ``conformer`` and the value
+    returned without merging.
+
+    :param tag_or_pred: an optional tag for the resulting spec or the first Spec
+        or value which can be converted into a Spec
+    :param preds: zero or more Specs or values which can be converted into a Spec
     :param conformer: an optional conformer which will be applied to the final
         conformed value produced by the input Specs conformers
     :return: a Spec
     """
-    tag, preds = tag_maybe(*preds)  # pylint: disable=no-value-for-parameter
+    tag, preds = tag_maybe(tag_or_pred, *preds)
+
+    if not preds:
+        raise ValueError("Must provide at least one Spec for 'all' Specs")
+
+    if len(preds) == 1:
+        return make_spec(*filter(None, (tag,)), preds[0], conformer=conformer)
+
     specs = [make_spec(pred) for pred in preds]
 
     def _all_valid(e) -> Iterator[ErrorDetails]:
@@ -948,6 +921,7 @@ def all_spec(*preds: SpecPredicate, conformer: Optional[Conformer] = None,) -> S
 
 
 def any_spec(
+    tag_or_pred: Union[Tag, SpecPredicate],
     *preds: SpecPredicate,
     tag_conformed: bool = False,
     conformer: Optional[Conformer] = None,
@@ -975,15 +949,28 @@ def any_spec(
     If ``tag_conformed`` is not specified (which is the default), the conformer will
     emit the conformed value directly.
 
-    :param tag: an optional tag for the resulting spec
-    :param preds: one or more Specs or values which can be converted into a Spec
+    If no Specs or Spec predicates are given, a :py:class:`ValueError` will be raised.
+    If only one Spec or Spec predicate is provided, it will be passed to
+    :py:func:`dataspec.s` with the given ``tag`` and ``conformer`` and the value
+    returned without merging.
+
+    :param tag_or_pred: an optional tag for the resulting spec or the first Spec
+        or value which can be converted into a Spec
+    :param preds: zero or more Specs or values which can be converted into a Spec
     :param tag_conformed: if :py:obj:`True`, the conformed value will be wrapped in a
         2-tuple where the first element is the successful spec and the second element
         is the conformed value; if :py:obj:`False`, return only the conformed value
     :param conformer: an optional conformer for the value
     :return: a Spec
     """
-    tag, preds = tag_maybe(*preds)  # pylint: disable=no-value-for-parameter
+    tag, preds = tag_maybe(tag_or_pred, *preds)
+
+    if not preds:
+        raise ValueError("Must provide at least one Spec for 'any' Specs")
+
+    if len(preds) == 1:
+        return make_spec(*filter(None, (tag,)), preds[0], conformer=conformer)
+
     specs = [make_spec(pred) for pred in preds]
 
     def _any_valid(e) -> Iterator[ErrorDetails]:
@@ -1014,6 +1001,51 @@ def any_spec(
         return INVALID
 
     return ValidatorSpec(tag or "any", _any_valid, conformer=_conform_any)
+
+
+def merge_spec(
+    tag_or_pred: Union[Tag, SpecPredicate],
+    *preds: SpecPredicate,
+    conformer: Optional[Conformer] = None,
+) -> Spec:
+    """
+    Merge two or more mapping Specs into a single new Spec.
+
+    Mapping Specs will be merged in the order they are provided. Individual key Specs
+    whose keys appear more than one input Spec will be merged as via
+    :py:meth:`dataspec.SpecAPI.all` in the order they are passed into this function.
+
+    If no Specs or Spec predicates are given, a :py:class:`ValueError` will be raised.
+    If only one Spec or Spec predicate is provided, it will be passed to
+    :py:func:`dataspec.s` with the given ``tag`` and ``conformer`` and the value returned
+    without merging. If any Specs or Spec predicates are provided which are not mapping
+    Specs or which cannot be coerced to mapping Specs, a :py:class:`TypeError` will be
+    raised.
+
+    :param tag: an optional tag for the resulting spec or the first Spec
+        or value which can be converted into a Spec
+    :param preds: zero or more mapping Specs or values which can be converted into a
+        mapping Spec
+    :param conformer: an optional conformer for the value
+    :return: a single mapping Spec which is the union of all input Specs
+    """
+    tag, preds = tag_maybe(tag_or_pred, *preds)
+
+    if not preds:
+        raise ValueError("Must provide at least one mapping Spec to merge")
+
+    if len(preds) == 1:
+        return make_spec(*filter(None, (tag,)), preds[0], conformer=conformer)
+
+    specs = [make_spec(pred) for pred in preds]
+
+    for spec in specs:
+        if not isinstance(spec, DictSpec):
+            raise TypeError(f"Can only merge mapping spec types, not '{type(spec)}'")
+
+    return DictSpec.merge(
+        tag, *cast("Tuple[DictSpec, ...]", specs), conformer=conformer
+    )
 
 
 def _complement(pred: PredicateFn) -> PredicateFn:

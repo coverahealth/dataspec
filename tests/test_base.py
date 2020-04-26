@@ -701,6 +701,19 @@ class TestTupleSpecConformation:
         assert 29 == conformed.age == conformed[2]
 
 
+class TestAllSpecConstruction:
+    def test_all_spec_must_have_pred(self):
+        with pytest.raises(TypeError):
+            s.all()
+
+        with pytest.raises(ValueError):
+            s.all("with_tag")
+
+    def test_passthrough_spec(self):
+        assert s.all(str).is_valid("something")
+        assert s.all("with_tag", str).is_valid("something")
+
+
 class TestAllSpecValidation:
     @pytest.fixture
     def all_spec(self) -> Spec:
@@ -766,6 +779,19 @@ class TestAllSpecConformation:
     )
     def test_all_spec_conformation(self, all_spec: Spec, v, expected):
         assert expected == all_spec.conform(v)
+
+
+class TestAnySpecConstruction:
+    def test_any_spec_must_have_pred(self):
+        with pytest.raises(TypeError):
+            s.any()
+
+        with pytest.raises(ValueError):
+            s.any("with_tag")
+
+    def test_passthrough_spec(self):
+        assert s.any(str).is_valid("something")
+        assert s.any("with_tag", str).is_valid("something")
 
 
 class TestAnySpecValidation:

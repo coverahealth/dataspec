@@ -2,7 +2,6 @@ import re
 import sys
 import uuid
 from datetime import date, datetime, time, timezone
-from enum import Enum
 
 import pytest
 

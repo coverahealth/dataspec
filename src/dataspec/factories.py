@@ -256,7 +256,7 @@ def default_spec(
     tag, preds = tag_maybe(*args)  # pylint: disable=no-value-for-parameter
     assert len(preds) == 1, "Only one predicate allowed"
     return any_spec(
-        tag or "default",  # type: ignore[arg-type]  # noqa: F821
+        tag or "default",
         preds[0],  # type: ignore[arg-type]  # noqa: F821
         every_spec(conformer=lambda _: default),
         conformer=conformer,
