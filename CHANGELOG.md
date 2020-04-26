@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Fixed a bug where `s(None)` is not a valid alias for `s(type(None))` (#61)
 - Fixed a bug where it was possible to define duplicate keys in mapping Specs with
-  `s.opt(k)` (#70)
+  `s.opt(k)` (#74)
 
 ## [v0.2.5] - 2020-04-10
 ### Added
