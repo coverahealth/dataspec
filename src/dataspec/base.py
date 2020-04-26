@@ -941,7 +941,7 @@ def any_spec(
     :py:meth:`dataspec.Spec.validate` method.
 
     The conformer for the returned Spec will select the conformer for the first
-    contituent Spec which successfully validates the input value. If a ``conformer``
+    constituent Spec which successfully validates the input value. If a ``conformer``
     is specified for this Spec, that conformer will be applied after the successful
     Spec's conformer. If ``tag_conformed`` is specified, the final conformed value
     from both conformers will be wrapped in a tuple, where the first element is the
@@ -1022,7 +1022,7 @@ def merge_spec(
     Specs or which cannot be coerced to mapping Specs, a :py:class:`TypeError` will be
     raised.
 
-    :param tag: an optional tag for the resulting spec or the first Spec
+    :param tag_or_pred: an optional tag for the resulting spec or the first Spec
         or value which can be converted into a Spec
     :param preds: zero or more mapping Specs or values which can be converted into a
         mapping Spec

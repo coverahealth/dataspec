@@ -752,6 +752,7 @@ class TestAllSpecValidation:
     )
     def test_all_failure(self, all_spec, v):
         assert not all_spec.is_valid(v)
+        assert list(all_spec.validate(v))
         assert INVALID is all_spec.conform(v)
 
 
@@ -901,6 +902,19 @@ class TestAnySpecWithOuterConformation:
     def test_tagged_conformation_failure(self, tag_spec: Spec, v):
         assert INVALID is tag_spec.conform(v)
         assert INVALID is tag_spec.conform_valid(v)
+
+
+class TestMergeSpecConstruction:
+    def test_merge_spec_must_have_pred(self):
+        with pytest.raises(TypeError):
+            s.merge()
+
+        with pytest.raises(ValueError):
+            s.merge("with_tag")
+
+    def test_passthrough_spec(self):
+        assert s.merge(str).is_valid("something")
+        assert s.merge("with_tag", str).is_valid("something")
 
 
 class TestTypeSpec:
