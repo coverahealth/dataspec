@@ -916,6 +916,70 @@ class TestMergeSpecConstruction:
         assert s.merge(str).is_valid("something")
         assert s.merge("with_tag", str).is_valid("something")
 
+    def test_must_all_be_mapping_specs(self):
+        with pytest.raises(TypeError):
+            s.merge({"id": int}, s.str("name"))
+
+        with pytest.raises(TypeError):
+            s.merge("with_tag", s.num(min_=0), {"name": str})
+
+
+class TestMergeSpecValidation:
+    @pytest.fixture
+    def merge_spec(self) -> Spec:
+        return s.merge(
+            {"id": int},
+            {
+                "id": lambda v: v > 0,
+                "first_name": str,
+                s.opt("middle_initial"): str,
+                "last_name": str,
+            },
+        )
+
+    @pytest.mark.parametrize(
+        "v",
+        [
+            {"id": 5, "first_name": "Samwise", "last_name": "Gamgee"},
+            {
+                "id": 500,
+                "first_name": "Samwise",
+                "middle_initial": "H",
+                "last_name": "Gamgee",
+            },
+        ],
+    )
+    def test_merge_validation(self, merge_spec, v):
+        assert merge_spec.is_valid(v)
+
+    @pytest.mark.parametrize(
+        "v",
+        [
+            "",
+            "5",
+            "abcde",
+            "ABCDe",
+            5,
+            3.14,
+            None,
+            {},
+            set(),
+            [],
+            {"id": -5, "first_name": "Samwise", "last_name": "Gamgee"},
+            {"id": 500, "middle_initial": "H", "last_name": "Gamgee"},
+            {
+                "id": 500,
+                "first_name": "Samwise",
+                "middle_initial": None,
+                "last_name": "Gamgee",
+            },
+        ],
+    )
+    def test_merge_failure(self, merge_spec, v):
+        assert not merge_spec.is_valid(v)
+        assert list(merge_spec.validate(v))
+        assert INVALID is merge_spec.conform(v)
+
 
 class TestTypeSpec:
     @pytest.mark.parametrize(
