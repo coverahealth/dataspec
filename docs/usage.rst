@@ -339,6 +339,13 @@ returned by the mapping spec default conformer will not include any extra keys
 included in the input. Optional keys will be included in the conformed value if they
 appear in the input map.
 
+.. _merging_mapping_specs:
+
+Merging Mapping Specs
+^^^^^^^^^^^^^^^^^^^^^
+
+TBD
+
 .. _tuple_specs:
 
 Tuple Specs
