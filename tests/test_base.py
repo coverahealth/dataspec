@@ -923,6 +923,12 @@ class TestMergeSpecConstruction:
         with pytest.raises(TypeError):
             s.merge("with_tag", s.num(min_=0), {"name": str})
 
+    def test_no_overlapping_required_and_optional(self):
+        with pytest.raises(KeyError):
+            s.merge(
+                {"id": int, "name": str}, {"id": lambda v: v > 0, s.opt("name"): str}
+            )
+
 
 class TestMergeSpecValidation:
     @pytest.fixture

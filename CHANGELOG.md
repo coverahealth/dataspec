@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   can use `Spec.compose_conformer`, which will compose your conformer after any
   existing conformers on a Spec instance and return a copy with that composition.
   (#65)
+- `s.all` and `s.and` now return the result of calling `s(tag, pred, conformer)` if
+  passed only one predicate (#72)
 
 ### Fixed
 - Fixed a bug where `s(None)` is not a valid alias for `s(type(None))` (#61)

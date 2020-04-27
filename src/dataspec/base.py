@@ -884,6 +884,9 @@ def all_spec(
     :py:func:`dataspec.s` with the given ``tag`` and ``conformer`` and the value
     returned without merging.
 
+    This method is not suitable for producing a union of mapping Specs. To merge
+    mapping Specs, use :py:meth:`dataspec.SpecAPI.merge` instead.
+
     :param tag_or_pred: an optional tag for the resulting spec or the first Spec
         or value which can be converted into a Spec
     :param preds: zero or more Specs or values which can be converted into a Spec
@@ -1011,9 +1014,11 @@ def merge_spec(
     """
     Merge two or more mapping Specs into a single new Spec.
 
-    Mapping Specs will be merged in the order they are provided. Individual key Specs
-    whose keys appear more than one input Spec will be merged as via
-    :py:meth:`dataspec.SpecAPI.all` in the order they are passed into this function.
+    The returned Spec validates input values against a mapping Spec which is created
+    from the union of input mapping Specs. Mapping Specs will be merged in the order
+    they are provided. Individual key Specs whose keys appear more than one input Spec
+    will be merged as via :py:meth:`dataspec.SpecAPI.all` in the order they are passed
+    into this function.
 
     If no Specs or Spec predicates are given, a :py:class:`ValueError` will be raised.
     If only one Spec or Spec predicate is provided, it will be passed to
@@ -1021,6 +1026,13 @@ def merge_spec(
     without merging. If any Specs or Spec predicates are provided which are not mapping
     Specs or which cannot be coerced to mapping Specs, a :py:class:`TypeError` will be
     raised.
+
+    The returned Spec's :py:meth:`dataspec.Spec.conform` method is a standard mapping
+    Spec default conformer. Keys not defined in the union of key sets will be dropped
+    during conformation. Values with more than one Spec defined in the input Specs
+    will be conformed as by :py:meth:`dataspec.SpecAPI.all` applied to all of their
+    input Specs in the order they were provided. Values with exactly one Spec will
+    use that Spec as given.
 
     :param tag_or_pred: an optional tag for the resulting spec or the first Spec
         or value which can be converted into a Spec
