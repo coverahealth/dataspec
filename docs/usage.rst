@@ -339,6 +339,46 @@ returned by the mapping spec default conformer will not include any extra keys
 included in the input. Optional keys will be included in the conformed value if they
 appear in the input map.
 
+.. _renaming_map_keys:
+
+Renaming Map Keys
+^^^^^^^^^^^^^^^^^
+
+In some situations, you may be receiving the same data from multiple sources, but for
+whatever reason each source uses a slightly different set of key names for what is
+otherwise the same data. In those situations, you may want to rename the input keys
+to match the key expected by your Spec and other downstream code. You can create a
+Spec which will check that your input data is a mapping type (:py:class:`dict` by
+default) and rename keys in the input map based on another simple map. By default the
+renaming Spec will verify that no keys end up being overwritten during the renaming
+phase.
+
+You can create a renaming Spec using :py:meth:`dataspec.SpecAPI.rename`:
+
+.. code-block:: python
+
+   spec = s.all(
+       s.rename(
+           replacements={"ID": "id", "Ident": ["ident", "name"]},
+       ),
+       {"id": s.str(regex=r"[A-Z]{2}\d+"), "ident": s.str(regex=r"[A-Za-z\-]+")},
+   )
+   spec.is_valid({"id": "WI37272727", "ident": "spam-widget"})  # True
+   spec.is_valid({"ID": "WI37272727", "Ident": "spam-widget"})  # True
+   spec.is_valid({"ID": "WI37272727", "name": "spam-widget"})   # False
+
+.. note::
+
+   Renaming Specs will skip any replacement keys that are not found in the input value.
+   You should chain a rename Spec with a standard mapping Spec to validate that your
+   input data contains any keys you expect after renaming.
+
+.. note::
+
+   Renaming Specs are intended to simplify the common, tedious conformation of renaming
+   keys in a map. More complicated transformations of your input map (such as merging
+   two keys together) should be performed with a custom conformer.
+
 .. _tuple_specs:
 
 Tuple Specs

@@ -9,6 +9,7 @@ from typing import (
     AbstractSet,
     Any,
     Callable,
+    Hashable,
     Iterator,
     List,
     Mapping,
@@ -1173,7 +1174,7 @@ else:
 
 def rename_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
     tag: Optional[Tag] = None,
-    replacements: Optional[Mapping[Any, Any]] = None,
+    replacements: Optional[Mapping[Hashable, Union[Hashable, List[Hashable]]]] = None,
     retain_replaced_keys: bool = False,
     overwrite_duplicate_keys: bool = False,
     type_: Tuple[Type[Mapping], ...] = (dict,),
@@ -1280,7 +1281,7 @@ def rename_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
     def rename_conform(m: Mapping) -> Union[Mapping, Invalid]:
         conformed = {}
         for k, v in m.items():
-            new_k = m.get(k, _sentinel)
+            new_k = replacements.get(k, _sentinel)
             if new_k is _sentinel:
                 conformed[k] = v
             else:
