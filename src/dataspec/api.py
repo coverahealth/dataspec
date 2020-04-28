@@ -7,11 +7,12 @@ from dataspec.base import (
     SpecPredicate,
     Tag,
     ValidationError,
-    make_spec,
-)
-from dataspec.factories import (
     all_spec,
     any_spec,
+    make_spec,
+    merge_spec,
+)
+from dataspec.factories import (
     blankable_spec,
     bool_spec,
     bytes_spec,
@@ -62,7 +63,7 @@ def _fdef(
     """Wrap a function ``f`` and validate its arguments, keyword arguments, and return
     value with Specs, if any are given."""
     argspecs = s(argpreds) if argpreds else None
-    kwargspecs = s(kwargpreds) if kwargpreds else None
+    kwargspecs = s(kwargpreds) if kwargpreds else None  # type: ignore
     retspec = s(retpred) if retpred else None
 
     assert [argspecs, kwargspecs, retspec].count(
@@ -114,6 +115,7 @@ class SpecAPI:
     email = staticmethod(email_spec)
     every = staticmethod(every_spec)
     inst = staticmethod(datetime_spec)
+    merge = staticmethod(merge_spec)
     nilable = staticmethod(nilable_spec)
     num = staticmethod(num_spec)
     obj = staticmethod(obj_spec)
