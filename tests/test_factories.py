@@ -1276,86 +1276,156 @@ def test_rename_spec_construction():
         s.rename("rename", replacements=None)
 
 
+_RENAME_INVALID_SCALAR_VALUES = (
+    "",
+    "1234",
+    "1234D",
+    "12345",
+    None,
+    set(),
+    [],
+)
+
+_RENAME_VALID_DICT_VALUES = (
+    {},
+    {"ID": "WP39282"},
+    {"id": "WP39282"},
+    {"ID": "WP39282", "name": "widget"},
+    {"ID": "WP39282", "ident": "widget"},
+    {"ID": "WP39282", "IDENT": "widget"},
+)
+
+_RENAME_INVALID_DICT_VALUES = (
+    {"id": "WP39282", "ID": "WP39282"},
+    {"ID": "WP39282", "id": "WP39282"},
+    {"ID": "WP39282", "IDENT": "not-a-widget", "name": "widget"},
+    {"ID": "WP39282", "name": "widget", "IDENT": "not-a-widget",},
+)
+
+
 class TestRenameSpec:
     @pytest.fixture
     def replacements(self):
         return {"ID": "id", "IDENT": ["ident", "name"]}
 
-    @pytest.fixture
-    def rename_spec(self, replacements) -> Spec:
-        return s.rename(replacements=replacements)
+    def test_any(self):
+        assert True
 
-    @pytest.fixture
-    def overwriting_rename_spec(self, replacements) -> Spec:
-        return s.rename(replacements=replacements, overwrite_duplicate_keys=True)
+    class TestStandardRenameSpec:
+        @pytest.fixture
+        def rename_spec(self, replacements) -> Spec:
+            return s.rename(replacements=replacements)
 
-    @pytest.fixture
-    def retaining_rename_spec(self, replacements) -> Spec:
-        return s.rename(replacements=replacements, retain_replaced_keys=True)
+        @pytest.mark.parametrize("v", _RENAME_VALID_DICT_VALUES)
+        def test_rename_validation(self, rename_spec: Spec, v):
+            assert rename_spec.is_valid(v)
 
-    @pytest.mark.parametrize(
-        "v",
-        [
-            {},
-            {"ID": "WP39282"},
-            {"id": "WP39282"},
-            {"ID": "WP39282", "name": "widget"},
-            {"ID": "WP39282", "ident": "widget"},
-        ],
-    )
-    def test_rename_validation(
-        self,
-        rename_spec: Spec,
-        overwriting_rename_spec: Spec,
-        retaining_rename_spec: Spec,
-        v,
-    ):
-        assert rename_spec.is_valid(v)
-        assert overwriting_rename_spec.is_valid(v)
-        assert retaining_rename_spec.is_valid(v)
+        @pytest.mark.parametrize(
+            "v", [*_RENAME_INVALID_SCALAR_VALUES, *_RENAME_INVALID_DICT_VALUES],
+        )
+        def test_rename_validation_failure(self, rename_spec: Spec, v):
+            assert not rename_spec.is_valid(v)
 
-    INVALID_SCALAR_VALUES = (
-        "",
-        "1234",
-        "1234D",
-        "12345",
-        None,
-        set(),
-        [],
-    )
+        @pytest.mark.parametrize(
+            "orig,renamed",
+            [
+                ({}, {}),
+                ({"ID": "WP39282"}, {"id": "WP39282"}),
+                ({"id": "WP39282"}, {"id": "WP39282"}),
+                (
+                    {"ID": "WP39282", "name": "widget"},
+                    {"id": "WP39282", "name": "widget"},
+                ),
+                (
+                    {"ID": "WP39282", "ident": "widget"},
+                    {"id": "WP39282", "ident": "widget"},
+                ),
+                (
+                    {"ID": "WP39282", "IDENT": "widget"},
+                    {"id": "WP39282", "ident": "widget", "name": "widget"},
+                ),
+            ],
+        )
+        def test_conformation(self, rename_spec: Spec, orig, renamed):
+            assert renamed == rename_spec.conform(orig)
 
-    INVALID_DICT_VALUES = (
-        {"id": "WP39282", "ID": "WP39282"},
-        {"ID": "WP39282", "id": "WP39282"},
-        {"ID": "WP39282", "IDENT": "not-a-widget", "name": "widget"},
-        {"ID": "WP39282", "name": "widget", "IDENT": "not-a-widget",},
-    )
+    class TestOverwritingRenameSpec:
+        @pytest.fixture
+        def overwriting_rename_spec(self, replacements) -> Spec:
+            return s.rename(replacements=replacements, overwrite_duplicate_keys=True)
 
-    @pytest.mark.parametrize(
-        "v", [*INVALID_SCALAR_VALUES, *INVALID_DICT_VALUES],
-    )
-    def test_rename_validation_failure(self, replacements, rename_spec: Spec, v):
-        assert not rename_spec.is_valid(v)
+        @pytest.mark.parametrize(
+            "v", [*_RENAME_VALID_DICT_VALUES, *_RENAME_INVALID_DICT_VALUES],
+        )
+        def test_overwriting_rename_validation(self, overwriting_rename_spec: Spec, v):
+            assert overwriting_rename_spec.is_valid(v)
 
-    @pytest.mark.parametrize(
-        "v", INVALID_SCALAR_VALUES,
-    )
-    def test_overwriting_has_type_validation(self, overwriting_rename_spec: Spec, v):
-        assert not overwriting_rename_spec.is_valid(v)
+        @pytest.mark.parametrize("v", _RENAME_INVALID_SCALAR_VALUES)
+        def test_overwriting_rename_validation_failure(
+            self, overwriting_rename_spec: Spec, v
+        ):
+            """Overwriting rename Specs do still check types, even if they do not
+            check for overwritten keys, so non-mapping values are considered invalid."""
+            assert not overwriting_rename_spec.is_valid(v)
 
-    @pytest.mark.parametrize(
-        "v", INVALID_DICT_VALUES,
-    )
-    def test_overwriting_has_no_duplicate_key_validation(
-        self, overwriting_rename_spec: Spec, v
-    ):
-        assert overwriting_rename_spec.is_valid(v)
+        # There are no specific conformation tests for an overwriting rename Spec since
+        # the conformer will always overwrite. Standard (non-overwriting) rename Specs
+        # simply add a validator that fails if there are duplicate keys in the final
+        # value.
 
-    @pytest.mark.parametrize(
-        "v", [*INVALID_SCALAR_VALUES, *INVALID_DICT_VALUES],
-    )
-    def test_retaining_validation_failure(self, retaining_rename_spec: Spec, v):
-        assert not retaining_rename_spec.is_valid(v)
+    class TestRetainingRenameSpec:
+        @pytest.fixture
+        def retaining_rename_spec(self, replacements) -> Spec:
+            replacements["identifier"] = "IDENT"
+            return s.rename(replacements=replacements, retain_replaced_keys=True)
+
+        @pytest.mark.parametrize("v", _RENAME_VALID_DICT_VALUES)
+        def test_retaining_rename_validation(self, retaining_rename_spec: Spec, v):
+            assert retaining_rename_spec.is_valid(v)
+
+        @pytest.mark.parametrize(
+            "v",
+            [
+                *_RENAME_INVALID_SCALAR_VALUES,
+                *_RENAME_INVALID_DICT_VALUES,
+                {"ID": "WP39282", "IDENT": "widget", "identifier": "The Widget"},
+            ],
+        )
+        def test_retaining_rename_validation_failure(
+            self, retaining_rename_spec: Spec, v
+        ):
+            assert not retaining_rename_spec.is_valid(v)
+
+        @pytest.mark.parametrize(
+            "orig,renamed",
+            [
+                ({}, {}),
+                ({"ID": "WP39282"}, {"id": "WP39282", "ID": "WP39282"}),
+                ({"id": "WP39282"}, {"id": "WP39282"}),
+                (
+                    {"ID": "WP39282", "name": "widget"},
+                    {"ID": "WP39282", "id": "WP39282", "name": "widget"},
+                ),
+                (
+                    {"ID": "WP39282", "ident": "widget"},
+                    {"ID": "WP39282", "id": "WP39282", "ident": "widget"},
+                ),
+                (
+                    {"ID": "WP39282", "IDENT": "widget"},
+                    {
+                        "ID": "WP39282",
+                        "IDENT": "widget",
+                        "id": "WP39282",
+                        "ident": "widget",
+                        "name": "widget",
+                    },
+                ),
+            ],
+        )
+        def test_retaining_rename_conformation(
+            self, retaining_rename_spec: Spec, orig, renamed
+        ):
+            assert renamed == retaining_rename_spec.conform(orig)
 
 
 class TestStringSpecValidation:

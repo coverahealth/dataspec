@@ -1244,6 +1244,8 @@ def rename_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
     if not overwrite_duplicate_keys:
 
         def validate_no_duplicate_keys(m: Mapping) -> Iterator[ErrorDetails]:
+            assert replacements is not None
+
             keys = set()
             for k in m.keys():
                 new_k = replacements.get(k, _sentinel)
@@ -1279,6 +1281,8 @@ def rename_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
         validators.append(validate_no_duplicate_keys)
 
     def rename_conform(m: Mapping) -> Union[Mapping, Invalid]:
+        assert replacements is not None
+
         conformed = {}
         for k, v in m.items():
             new_k = replacements.get(k, _sentinel)

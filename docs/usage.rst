@@ -267,9 +267,9 @@ Additionally, for simpler cases you can specify an enum using Python ``set`` s (
 Collection Specs
 ----------------
 
-Specs can be defined for values in homogenous collections as well. Define a spec for
-a homogenous collection as a list passed to :py:func:`dataspec.s` with the first
-element as the Spec for collection elements:
+Specs can be defined for values in homogeneous collections as well. Define a spec for a
+homogeneous collection as a list passed to :py:func:`dataspec.s` with the first element
+as the Spec for collection elements:
 
 .. code-block:: python
 
@@ -344,14 +344,13 @@ appear in the input map.
 Renaming Map Keys
 ^^^^^^^^^^^^^^^^^
 
-In some situations, you may be receiving the same data from multiple sources, but for
-whatever reason each source uses a slightly different set of key names for what is
-otherwise the same data. In those situations, you may want to rename the input keys
-to match the key expected by your Spec and other downstream code. You can create a
-Spec which will check that your input data is a mapping type (:py:class:`dict` by
-default) and rename keys in the input map based on another simple map. By default the
-renaming Spec will verify that no keys end up being overwritten during the renaming
-phase.
+Occasionally it may be necessary to rename map keys prior to validation. Perhaps you
+are receiving data from multiple sources which use different keys for identical data
+or perhaps your map keys appear in multiple different contexts where different names
+are appropriate. You can create a Spec which will check that your input data is a
+mapping type (:py:class:`dict` by default) *and* rename keys in the input map with its
+default conformer. By default the renaming Spec will also verify that no keys will be
+overwritten during the renaming phase.
 
 You can create a renaming Spec using :py:meth:`dataspec.SpecAPI.rename`:
 
@@ -370,8 +369,8 @@ You can create a renaming Spec using :py:meth:`dataspec.SpecAPI.rename`:
 .. note::
 
    Renaming Specs will skip any replacement keys that are not found in the input value.
-   You should chain a rename Spec with a standard mapping Spec to validate that your
-   input data contains any keys you expect after renaming.
+   You should chain a rename Spec with a standard :ref:`mapping_spec` to validate that
+   your input data contains any keys you expect after renaming.
 
 .. note::
 
@@ -379,12 +378,16 @@ You can create a renaming Spec using :py:meth:`dataspec.SpecAPI.rename`:
    keys in a map. More complicated transformations of your input map (such as merging
    two keys together) should be performed with a custom conformer.
 
+   If you are building a custom conformer that relies on the presence of certain keys,
+   you may consider applying that conformer after the primary :ref:`mapping_spec`, so
+   you can be sure any keys you use exist on the input value.
+
 .. _tuple_specs:
 
 Tuple Specs
 -----------
 
-Specs can be defined for heterogenous collections of elements, which is often the use
+Specs can be defined for heterogeneous collections of elements, which is often the use
 case for Python's ``tuple`` type. To define a spec for a tuple, pass a tuple of specs for
 each element in the collection at the corresponding tuple index:
 
