@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add a `regex` validator to the `s.bytes` factory (#37)
 - Added `Spec.compose_conformer` to allow composition of new conformers with existing
   conformers (#65)
+- Added `s.merge` to allow seamless merging of mapping Specs (#70)
 
 ### Changed
 - **Breaking** `Spec.with_conformer` will now replace the default conformer applied
@@ -20,9 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   can use `Spec.compose_conformer`, which will compose your conformer after any
   existing conformers on a Spec instance and return a copy with that composition.
   (#65)
+- `s.all` and `s.and` now return the result of calling `s(tag, pred, conformer)` if
+  passed only one predicate (#72)
 
 ### Fixed
 - Fixed a bug where `s(None)` is not a valid alias for `s(type(None))` (#61)
+- Fixed a bug where it was possible to define duplicate keys in mapping Specs with
+  `s.opt(k)` (#74)
 
 ## [v0.2.5] - 2020-04-10
 ### Added

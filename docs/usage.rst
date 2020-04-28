@@ -339,6 +339,45 @@ returned by the mapping spec default conformer will not include any extra keys
 included in the input. Optional keys will be included in the conformed value if they
 appear in the input map.
 
+.. _merging_mapping_specs:
+
+Merging Mapping Specs
+^^^^^^^^^^^^^^^^^^^^^
+
+Occasionally, you may wish to declare your mapping Specs across two or more different
+Specs. It may be convenient to do so for composition of common keys across multiple
+Specs. In such cases, you may naturally turn to one of the builtin
+:ref:`combination_specs` to return a union of the input Specs. However, combination
+Specs composed of mapping Specs with disjoint or only partially intersecting key sets
+will end up producing unexpected results. Recall mapping Specs have a default conformer
+which drops keys not declared in the input Spec, so the chained conformation of
+:py:meth:`dataspec.SpecAPI.all` will drop keys potentially expected by later Specs.
+
+To merge mapping Specs, use :py:meth:`dataspec.SpecAPI.merge` instead.
+
+.. code-block:: python
+
+   s.merge(
+       {"id": int},
+       {
+           "id": lambda v: v > 0,
+           "first_name": str,
+           s.opt("middle_initial"): str,
+           "last_name": str,
+       },
+   )
+
+In the above Spec, ``id`` would be a required key, which must be an integer greater
+than zero. Specs for the remaining keys would match the Spec defined in the second
+input Spec.
+
+.. note::
+
+   Only mapping Specs may be merged. ``s.merge`` will throw a :py:class:`ValueError`
+   if you attempt to merge non-mapping type Specs. To combine mapping and non-mapping
+   Spec types, you should wrap the mapping Specs with ``s.merge`` and pass that to
+   ``s.all``.
+
 .. _tuple_specs:
 
 Tuple Specs
@@ -403,6 +442,14 @@ any ``n`` specs:
 
    The names ``any`` and ``all`` were chosen because ``or`` and ``and`` are not valid
    Python since they are reserved keywords.
+
+.. warning::
+
+   Using a :py:meth:`dataspec.SpecAPI.all` Spec to combine mapping Specs for maps with
+   disjoint or only partially intersecting keys will result in maps losing keys during
+   conformation and failing validation in later Specs.
+   Use :py:meth:`dataspec.SpecAPI.merge` to combine mapping Specs. Read more in
+   :ref:`merging_mapping_specs`.
 
 .. _utility_specs:
 
