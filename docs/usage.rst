@@ -369,7 +369,7 @@ You can create a renaming Spec using :py:meth:`dataspec.SpecAPI.rename`:
 .. note::
 
    Renaming Specs will skip any replacement keys that are not found in the input value.
-   You should chain a rename Spec with a standard :ref:`mapping_spec` to validate that
+   You should chain a rename Spec with a standard :ref:`mapping_specs` to validate that
    your input data contains any keys you expect after renaming.
 
 .. note::
@@ -379,7 +379,7 @@ You can create a renaming Spec using :py:meth:`dataspec.SpecAPI.rename`:
    two keys together) should be performed with a custom conformer.
 
    If you are building a custom conformer that relies on the presence of certain keys,
-   you may consider applying that conformer after the primary :ref:`mapping_spec`, so
+   you may consider applying that conformer after the primary :ref:`mapping_specs`, so
    you can be sure any keys you use exist on the input value.
 
 .. _tuple_specs:
