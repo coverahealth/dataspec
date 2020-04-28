@@ -1265,6 +1265,99 @@ class TestPhoneNumberStringSpecValidation:
         assert INVALID is phone_spec.conform(v)
 
 
+def test_rename_spec_construction():
+    with pytest.raises(ValueError):
+        s.rename()
+
+    with pytest.raises(ValueError):
+        s.rename("rename")
+
+    with pytest.raises(ValueError):
+        s.rename("rename", replacements=None)
+
+
+class TestRenameSpec:
+    @pytest.fixture
+    def replacements(self):
+        return {"ID": "id", "IDENT": ["ident", "name"]}
+
+    @pytest.fixture
+    def rename_spec(self, replacements) -> Spec:
+        return s.rename(replacements=replacements)
+
+    @pytest.fixture
+    def overwriting_rename_spec(self, replacements) -> Spec:
+        return s.rename(replacements=replacements, overwrite_duplicate_keys=True)
+
+    @pytest.fixture
+    def retaining_rename_spec(self, replacements) -> Spec:
+        return s.rename(replacements=replacements, retain_replaced_keys=True)
+
+    @pytest.mark.parametrize(
+        "v",
+        [
+            {},
+            {"ID": "WP39282"},
+            {"id": "WP39282"},
+            {"ID": "WP39282", "name": "widget"},
+            {"ID": "WP39282", "ident": "widget"},
+        ],
+    )
+    def test_rename_validation(
+        self,
+        rename_spec: Spec,
+        overwriting_rename_spec: Spec,
+        retaining_rename_spec: Spec,
+        v,
+    ):
+        assert rename_spec.is_valid(v)
+        assert overwriting_rename_spec.is_valid(v)
+        assert retaining_rename_spec.is_valid(v)
+
+    INVALID_SCALAR_VALUES = (
+        "",
+        "1234",
+        "1234D",
+        "12345",
+        None,
+        set(),
+        [],
+    )
+
+    INVALID_DICT_VALUES = (
+        {"id": "WP39282", "ID": "WP39282"},
+        {"ID": "WP39282", "id": "WP39282"},
+        {"ID": "WP39282", "IDENT": "not-a-widget", "name": "widget"},
+        {"ID": "WP39282", "name": "widget", "IDENT": "not-a-widget",},
+    )
+
+    @pytest.mark.parametrize(
+        "v", [*INVALID_SCALAR_VALUES, *INVALID_DICT_VALUES],
+    )
+    def test_rename_validation_failure(self, replacements, rename_spec: Spec, v):
+        assert not rename_spec.is_valid(v)
+
+    @pytest.mark.parametrize(
+        "v", INVALID_SCALAR_VALUES,
+    )
+    def test_overwriting_has_type_validation(self, overwriting_rename_spec: Spec, v):
+        assert not overwriting_rename_spec.is_valid(v)
+
+    @pytest.mark.parametrize(
+        "v", INVALID_DICT_VALUES,
+    )
+    def test_overwriting_has_no_duplicate_key_validation(
+        self, overwriting_rename_spec: Spec, v
+    ):
+        assert overwriting_rename_spec.is_valid(v)
+
+    @pytest.mark.parametrize(
+        "v", [*INVALID_SCALAR_VALUES, *INVALID_DICT_VALUES],
+    )
+    def test_retaining_validation_failure(self, retaining_rename_spec: Spec, v):
+        assert not retaining_rename_spec.is_valid(v)
+
+
 class TestStringSpecValidation:
     @pytest.mark.parametrize("v", ["", "a string", "😏"])
     def test_is_str(self, v):

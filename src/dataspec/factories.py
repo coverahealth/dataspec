@@ -1246,7 +1246,7 @@ def rename_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
         def validate_no_duplicate_keys(m: Mapping) -> Iterator[ErrorDetails]:
             keys = set()
             for k in m.keys():
-                new_k = m.get(k, _sentinel)
+                new_k = replacements.get(k, _sentinel)
                 if new_k is _sentinel:
                     if k in keys:
                         yield ErrorDetails(
@@ -1262,17 +1262,17 @@ def rename_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
                                 yield ErrorDetails(
                                     message="Duplicate key found in rename mapping",
                                     pred=validate_no_duplicate_keys,
-                                    value=k,
+                                    value=ks,
                                 )
                             keys.add(ks)
                     else:
-                        if k in keys:
+                        if new_k in keys:
                             yield ErrorDetails(
                                 message="Duplicate key found in rename mapping",
                                 pred=validate_no_duplicate_keys,
-                                value=k,
+                                value=new_k,
                             )
-                        keys.add(k)
+                        keys.add(new_k)
                     if retain_replaced_keys:
                         keys.add(k)
 
@@ -1299,7 +1299,7 @@ def rename_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
 
     return ValidatorSpec.from_validators(
         tag or "rename",
-        is_mapping,
+        *validators,
         conformer=compose_conformers(rename_conform, *filter(None, (conformer,))),
     )
 
