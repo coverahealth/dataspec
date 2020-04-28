@@ -253,6 +253,7 @@ class TestDictSpecValidation:
         "pred", [{"id": str, s.opt("id"): int}, {s.opt("id"): int, "id": str},]
     )
     def test_dict_spec_definition(self, pred):
+        """Duplicate keys are prohibited between required and optional keys."""
         with pytest.raises(KeyError):
             s(pred)
 
@@ -422,7 +423,7 @@ class TestObjectSpecValidation:
     @pytest.mark.parametrize(
         "pred", [{"id": str, s.opt("id"): int}, {s.opt("id"): int, "id": str},]
     )
-    def test_dict_spec_definition(self, pred):
+    def test_obj_spec_definition(self, pred):
         with pytest.raises(KeyError):
             s.obj(pred)
 
@@ -922,6 +923,12 @@ class TestMergeSpecConstruction:
 
         with pytest.raises(TypeError):
             s.merge("with_tag", s.num(min_=0), {"name": str})
+
+    def test_allow_overlapping_required_and_optional(self):
+        s.merge(
+            {"id": int, s.opt("name"): str},
+            {"id": lambda v: v > 0, s.opt("name"): lambda s: s},
+        )
 
     def test_no_overlapping_required_and_optional(self):
         with pytest.raises(KeyError):
