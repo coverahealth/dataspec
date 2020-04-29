@@ -1,3 +1,4 @@
+import re
 from typing import Iterator
 
 import pytest
@@ -81,6 +82,45 @@ class TestSpecConformerComposition:
     ):
         assert 6 == coll_spec_with_conformer_kwarg.conform(["1", "2", "3"])
         assert INVALID is coll_spec_with_conformer_kwarg.conform(["1", 2, "3"])
+
+
+class TestErrorDetails:
+    def test_as_map_with_callable_pred(self):
+        def the_value_is_valid(_):
+            return False
+
+        errors = s(the_value_is_valid).validate_all("something")
+        error = errors[0].as_map()
+        assert isinstance(error["message"], str)
+        assert error["pred"] == "the_value_is_valid"
+        assert error["value"] == "something"
+        assert "the_value_is_valid" in error["via"]
+        assert error["path"] == []
+
+    def test_as_map_with_spec_pred(self):
+        def invalid_validator_spec(_) -> Iterator[ErrorDetails]:
+            raise Exception()
+
+        errors = s("test-validator-spec", invalid_validator_spec).validate_all(
+            "something"
+        )
+        error = errors[0].as_map()
+        assert isinstance(error["message"], str)
+        assert error["pred"] == "test-validator-spec"
+        assert error["value"] == "something"
+        assert "test-validator-spec" in error["via"]
+        assert error["path"] == []
+
+    def test_as_map_with_other_pred(self):
+        errors = s("type-map", {"type": s("a-or-b", {"a", "b"})}).validate_all(
+            {"type": "c"}
+        )
+        error = errors[0].as_map()
+        assert isinstance(error["message"], str)
+        assert error["pred"] in {"{'a', 'b'}", "{'b', 'a'}"}
+        assert error["value"] == "c"
+        assert "a-or-b" in error["via"]
+        assert error["path"] == ["type"]
 
 
 class TestFunctionSpecs:

@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `Spec.compose_conformer` to allow composition of new conformers with existing
   conformers (#65)
 - Added `s.merge` to allow seamless merging of mapping Specs (#70)
+- Added `ErrorDetails.as_map` to convert `ErrorDetails` instances to simple dicts (#79)
 - Add `s.rename` as a spec factory for validating that values are mapping types and
   providing a default conformer to rename keys (#60)
 
