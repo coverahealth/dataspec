@@ -125,6 +125,40 @@ class ErrorDetails:
             self.path.insert(0, loc)
         return self
 
+    def as_map(self) -> Mapping[str, Union[str, List[str]]]:
+        """
+        Return a map of the fields of this instance converted to strings or a list of
+        strings, suitable for being converted into JSON.
+
+        The :py:attr:`dataspec.ErrorDetails.pred` attribute will be stringified in one
+        of three ways. If ``pred`` is a :py:class:`dataspec.Spec` instance, ``pred``
+        will be converted to the :py:attr:`dataspec.Spec.tag` of that instance. If
+        ``pred`` is a callable (as by :py:func:`callable`) , it will be converted to
+        the ``__name__`` of the callable. Otherwise, ``pred`` will be passed directly
+        to :py:func:`str`.
+
+        ``message`` will remain a string. ``value`` will be passed to :py:func:`str`
+        directly. ``via`` and ``path`` will be returned as a list of strings.
+
+        :return: a mapping of string keys to strings or lists of strings
+        """
+        if isinstance(self.pred, Spec):
+            pred = self.pred.tag
+        elif callable(self.pred):
+            # Lambdas just have the name '<lambda>', but there's not much
+            # we can do about that
+            pred = self.pred.__name__
+        else:
+            pred = str(self.pred)
+
+        return {
+            "message": self.message,
+            "pred": pred,
+            "value": str(self.value),
+            "via": list(self.via),
+            "path": [str(e) for e in self.path],
+        }
+
 
 @attr.s(auto_attribs=True, slots=True)
 class ValidationError(Exception):
@@ -172,6 +206,20 @@ class Spec(ABC):
         """
         raise NotImplementedError
 
+    def validate_all(self, v: Any) -> List[ErrorDetails]:  # pragma: no cover
+        """
+        Validate the value ``v`` against the Spec, returning a :py:class:`list` of all
+        Spec failures of ``v`` as :py:class:`dataspec.ErrorDetails` instances.
+
+        This method is equivalent to ``list(spec.validate(v))``. If an empty list is
+        returned ``v`` is valid according to the Spec.
+
+        :param v: a value to validate
+        :return: a list of Spec failures as :py:class:`dataspec.ErrorDetails`
+            instances, if any
+        """
+        return list(self.validate(v))
+
     def validate_ex(self, v: Any) -> None:
         """
         Validate the value ``v`` against the Spec, throwing a
@@ -181,7 +229,7 @@ class Spec(ABC):
         :param v: a value to validate
         :return: :py:obj:`None`
         """
-        errors = list(self.validate(v))
+        errors = self.validate_all(v)
         if errors:
             raise ValidationError(errors)
 
