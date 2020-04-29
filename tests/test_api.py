@@ -46,10 +46,10 @@ class TestSpecConstructor:
 
     def test_construct_with_existing_spec_replaces_conformer(self):
         spec = s(str, conformer=str.upper)
-        assert spec.conformer is str.upper
+        orig_conformer = spec.conformer
         new_spec = s(spec, conformer=str.lower)
-        assert new_spec.conformer is str.lower
-        assert spec.conformer is str.upper
+        assert new_spec.conformer is not orig_conformer
+        assert spec.conformer is orig_conformer
 
     def test_predicate_exception(self):
         assert not s(lambda v: int(v) > 0).is_valid("something")

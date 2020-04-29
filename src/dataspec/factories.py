@@ -42,7 +42,6 @@ from dataspec.base import (
     ValidatorSpec,
     any_spec,
     compose_conformer_fns,
-    compose_spec_conformers,
     make_spec,
     pred_to_validator,
     tag_maybe,

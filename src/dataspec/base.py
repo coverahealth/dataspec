@@ -804,7 +804,7 @@ class ObjectSpec(Spec):
     tag: Tag
     _reqattrspecs: Mapping[str, Spec] = attr.ib(factory=dict)
     _optattrspecs: Mapping[str, Spec] = attr.ib(factory=dict)
-    conformer: Optional[Conformer] = None
+    conformer: Optional[IConformer] = attr.ib(default=None, converter=make_conformer)  # type: ignore[misc]  # noqa
 
     @classmethod
     def from_val(
