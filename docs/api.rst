@@ -1,3 +1,5 @@
+.. py:currentmodule:: dataspec
+
 .. _api:
 
 Dataspec API
@@ -27,20 +29,57 @@ For more information, see :py:meth:`dataspec.SpecAPI.__call__`.
 Types
 -----
 
-.. automodule:: dataspec
-   :members: Spec, SpecPredicate, Tag, Conformer, IConformer, ConformerFn, PredicateFn, ValidatorFn
-   :noindex:
+.. autoclass:: Spec
+   :members:
+
+.. data:: SpecPredicate
+
+   SpecPredicates are values that can be coerced into Specs by :py:func:`dataspec.s`.
+
+.. data:: Tag
+
+   Tags are string names given to :py:class:`dataspec.Spec` instances which are emitted
+   in :py:class:`dataspec.ErrorDetails` instances to indicate which Spec or Specs were
+   evaluated to produce the error.
+
+.. data:: Conformer
+   :annotation: = Union[IConformer, ConformerFn]
+
+.. autoclass:: IConformer
+
+.. data:: ConformerFn
+
+   Conformers are functions of one argument which return either a conformed value or
+   an instance of :py:class:`dataspec.Invalid` (such as :py:obj:`dataspec.INVALID`).
+
+.. data:: PredicateFn
+
+   Predicate functions are functions of one argument which return :py:class:`bool`
+   indicating whether or not the argument is valid or not.
+
+.. data:: ValidatorFn
+
+   Validator functions are functions of one argument which yield successive
+   :py:class:`dataspec.ErrorDetails` instances indicating exactly why input values
+   do not meet the Spec.
 
 .. _spec_errors:
 
 Spec Errors
 -----------
 
-.. automodule:: dataspec
-   :members: ErrorDetails, Invalid, ValidationError
-   :noindex:
+.. autoclass:: ErrorDetails
+   :members:
 
-.. autodata:: dataspec.INVALID
+.. autoclass:: Invalid
+
+.. autoclass:: ValidationError
+   :members:
+
+.. data:: dataspec.INVALID
+
+   ``INVALID`` is a singleton instance of :py:class:`dataspec.Invalid` emitted by
+   builtin conformers which can be used for a quick ``is`` identity check.
 
 .. _utilities:
 
