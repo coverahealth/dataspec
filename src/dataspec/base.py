@@ -76,12 +76,12 @@ NO_ERROR_PATH = object()
 
 
 @overload
-def make_conformer(f: None) -> None:
+def make_conformer(f: None) -> None:  # pragma: no cover
     ...
 
 
 @overload
-def make_conformer(f: Conformer) -> "IConformer":
+def make_conformer(f: Conformer) -> "IConformer":  # pragma: no cover
     ...
 
 
