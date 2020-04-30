@@ -456,6 +456,30 @@ input Spec.
    Spec types, you should wrap the mapping Specs with ``s.merge`` and pass that to
    ``s.all``.
 
+.. _key_value_specs:
+
+Key/Value Specs
+^^^^^^^^^^^^^^^
+
+Mapping Specs are useful for heterogeneous associative data structures for which the
+keys are known *a priori*. However, you may often wish to validate a homogeneous
+mapping with unknown keys. For such cases, you can turn to
+:py:meth:`dataspec.SpecAPI.kv`.
+
+.. code-block:: python
+
+   spec = s.kv(s.str(regex=r"[A-Z]{2}"), s.str(regex=r"[A-Z][\w ]+"))
+   spec.is_valid({"GA": "Georgia", "NM": "New Mexico"})  # True
+   spec.is_valid({"ga": "Georgia", "NM": "New Mexico"})  # False
+   spec.is_valid({"ga": "Georgia", "NM": "new mexico"})  # False
+
+.. note::
+
+   By default :py:meth:`s.kv <dataspec.SpecAPI.kv>` will not conform keys on input
+   values, to avoid potential creating potentially duplicate keys from the key
+   conformer. You can override this behavior with the ``conform_keys`` keyword
+   argument.
+
 .. _tuple_specs:
 
 Tuple Specs

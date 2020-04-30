@@ -419,6 +419,117 @@ class TestDictSpecConformation:
         assert None is conformed.get("date_of_birth")
 
 
+class TestKVSpecValidation:
+    @pytest.mark.parametrize("args", [("tag",), ("tag", str), (str,),])
+    def test_kv_spec_definition(self, args):
+        with pytest.raises(ValueError):
+            s.kv(*args)
+
+    @pytest.fixture
+    def kv_spec(self) -> Spec:
+        return s.kv(s.str(regex=r"[A-Za-z\-]+"), s({"email": s.email()}),)
+
+    @pytest.mark.parametrize(
+        "d",
+        [
+            {"home-email": {"email": "chris@home.net"},},
+            {
+                "home-email": {"email": "chris@home.net"},
+                "work-email": {"email": "chris@work.net"},
+            },
+            {"other": {"email": "secret@mailinator.net", "subscribe": False}},
+        ],
+    )
+    def test_kv_spec(self, kv_spec: Spec, d):
+        assert kv_spec.is_valid(d)
+
+    @pytest.mark.parametrize(
+        "d",
+        [
+            None,
+            "a string",
+            0,
+            3.14,
+            True,
+            False,
+            {"a", "b", "c"},
+            ["a", "b", "c"],
+            ("a", "b", "c"),
+            {"home_email": {"email": "chris@home.net"}},
+            {"home-email": {"email-address": "chris@home.net"}},
+            {"home-email": {}},
+        ],
+    )
+    def test_kv_spec_failure(self, kv_spec: Spec, d):
+        assert not kv_spec.is_valid(d)
+        assert list(kv_spec.validate(d))
+
+
+class TestKVSpecConformation:
+    @pytest.fixture
+    def kv_spec(self) -> Spec:
+        return s.kv(
+            s.str(regex=r"[A-Za-z\-]+", conformer=lambda s: s.replace("-", "")),
+            s({"email": s.email()}, conformer=lambda m: m["email"]),
+        )
+
+    @pytest.fixture
+    def kv_spec_conform_keys(self) -> Spec:
+        return s.kv(
+            s.str(regex=r"[A-Za-z\-]+", conformer=lambda s: s.replace("-", "")),
+            s({"email": s.email()}, conformer=lambda m: m["email"]),
+            conform_keys=True,
+        )
+
+    @pytest.mark.parametrize(
+        "orig,conformed",
+        [
+            (
+                {"home-email": {"email": "chris@home.net"},},
+                {"home-email": "chris@home.net"},
+            ),
+            (
+                {
+                    "home-email": {"email": "chris@home.net"},
+                    "work-email": {"email": "chris@work.net"},
+                },
+                {"home-email": "chris@home.net", "work-email": "chris@work.net"},
+            ),
+            (
+                {"other": {"email": "secret@mailinator.net", "subscribe": False}},
+                {"other": "secret@mailinator.net"},
+            ),
+        ],
+    )
+    def test_kv_spec_conformation(self, kv_spec: Spec, orig, conformed):
+        assert conformed == kv_spec.conform(orig)
+
+    @pytest.mark.parametrize(
+        "orig,conformed",
+        [
+            (
+                {"home-email": {"email": "chris@home.net"},},
+                {"homeemail": "chris@home.net"},
+            ),
+            (
+                {
+                    "home-email": {"email": "chris@home.net"},
+                    "work-email": {"email": "chris@work.net"},
+                },
+                {"homeemail": "chris@home.net", "workemail": "chris@work.net"},
+            ),
+            (
+                {"other": {"email": "secret@mailinator.net", "subscribe": False}},
+                {"other": "secret@mailinator.net"},
+            ),
+        ],
+    )
+    def test_kv_spec_conform_keys_conformation(
+        self, kv_spec_conform_keys: Spec, orig, conformed
+    ):
+        assert conformed == kv_spec_conform_keys.conform(orig)
+
+
 class TestObjectSpecValidation:
     @pytest.mark.parametrize(
         "pred", [{"id": str, s.opt("id"): int}, {s.opt("id"): int, "id": str},]

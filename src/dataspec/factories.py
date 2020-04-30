@@ -1298,7 +1298,9 @@ def str_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
         _pattern = regex if isinstance(regex, Pattern) else re.compile(regex)
 
         @pred_to_validator(
-            "String '{value}' does match regex '{regex}'", complement=True, regex=regex
+            "String '{value}' does not match regex '{regex}'",
+            complement=True,
+            regex=regex,
         )
         def str_matches_regex(s: str) -> bool:
             return bool(_pattern.fullmatch(s))
