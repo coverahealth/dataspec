@@ -152,6 +152,8 @@ class IConformer(Generic[T, V], ABC):
             return self
 
         def wrapped_conformer(v, is_valid: bool = False):
+            assert new_conformer is not None
+
             return new_conformer(self(v, is_valid=is_valid), is_valid=is_valid)
 
         return FunctionConformer(wrapped_conformer)
@@ -875,7 +877,7 @@ def kv_spec(
     return ValidatorSpec(
         tag,
         _kv_valid,
-        conformer=compose_conformers(conform_mapping, *filter(None, (conformer,))),
+        conformer=compose_conformer_fns(conform_mapping, *filter(None, (conformer,))),
     )
 
 
