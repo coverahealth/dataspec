@@ -9,6 +9,7 @@ from dataspec.base import (
     ValidationError,
     all_spec,
     any_spec,
+    kv_spec,
     make_spec,
     merge_spec,
 )
@@ -115,6 +116,7 @@ class SpecAPI:
     email = staticmethod(email_spec)
     every = staticmethod(every_spec)
     inst = staticmethod(datetime_spec)
+    kv = staticmethod(kv_spec)
     merge = staticmethod(merge_spec)
     nilable = staticmethod(nilable_spec)
     num = staticmethod(num_spec)

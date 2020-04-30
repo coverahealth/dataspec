@@ -65,6 +65,7 @@ SpecPredicate = Union[  # type: ignore
     List["SpecPredicate"],  # type: ignore
     FrozenSet[Any],
     Set[Any],
+    Type[Any],
     PredicateFn,
     ValidatorFn,
     "Spec",
@@ -650,7 +651,7 @@ class DictSpec(Spec):
                         via=[self.tag],
                         path=[k],
                     )
-        except TypeError:
+        except (AttributeError, TypeError):
             yield ErrorDetails(
                 message="Value is not a mapping type",
                 pred=self,
@@ -686,6 +687,83 @@ class DictSpec(Spec):
             {k: all_spec(str(k), *v) for k, v in map_pred.items()},
             conformer=conformer,
         )
+
+
+def kv_spec(
+    tag_or_pred: Union[Tag, SpecPredicate],
+    *preds: SpecPredicate,
+    conform_keys: bool = False,
+    conformer: Optional[Conformer] = None,
+) -> Spec:
+    """
+    Return a Spec that validates mapping types against a single Spec for all keys
+    and a single Spec for all values.
+
+    If ``conform_keys`` is specified as :py:obj:`True`, the default conformer will
+    conform keys and values. By default, ``conform_keys`` is :py:obj:`False` to avoid
+    duplicate names produced during the conformation.
+
+    The returned Spec's :py:meth:`dataspec.Spec.conform` method will return a
+    :py:class:`dict` with values conformed by the corresponding input Spec. If a
+    ``conformer`` is provided via keyword argument, that conformer will be provided a
+    :py:class:`dict` with the conformed :py:class:`dict` as described above. Otherwise,
+    the default conformer will simply return the conformed :py:class:`dict` . Note that
+    the default conformer does **not** modify the input mapping in place.
+
+    Exactly two Specs must be provided or a :py:class:`ValueError` will be raised
+    during construction.
+
+    :param tag_or_pred: an optional tag for the resulting spec or the key Spec
+        or value which can be converted into a Spec
+    :param preds: if a tag is given, preds should be exactly two Specs or values
+        which can be converted into Specs; the first shall be the Spec for the
+        keys and the second shall be the Spec for values
+    :param conform_keys: if :py:obj:`True`, the default conformer will also conform
+        keys according to the input key Spec; default is :py:obj:`False`
+    :param conformer: an optional conformer which will be composed with the
+        default conformer
+    :return: a Spec
+    """
+    tag, preds = tag_maybe(tag_or_pred, *preds)
+
+    if len(preds) != 2:
+        raise ValueError("Must specify a key and value Spec for k/v Specs")
+
+    tag = tag or "kv"
+    keyspec = make_spec(preds[0])
+    valspec = make_spec(preds[1])
+
+    def _kv_valid(d) -> Iterator[ErrorDetails]:
+        assert tag is not None
+
+        try:
+            for k, v in d.items():
+                yield from _enrich_errors(keyspec.validate(k), tag, d)
+                yield from _enrich_errors(valspec.validate(v), tag, k)
+        except (AttributeError, TypeError):
+            yield ErrorDetails(
+                message="Value is not a mapping type",
+                pred=_kv_valid,
+                value=d,
+                via=[tag],
+            )
+            return
+
+    if conform_keys:
+
+        def conform_mapping(d: Mapping) -> Mapping:
+            return {keyspec.conform(k): valspec.conform(v) for k, v in d.items()}
+
+    else:
+
+        def conform_mapping(d: Mapping) -> Mapping:
+            return {k: valspec.conform(v) for k, v in d.items()}
+
+    return ValidatorSpec(
+        tag,
+        _kv_valid,
+        conformer=compose_conformers(conform_mapping, *filter(None, (conformer,))),
+    )
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -1210,7 +1288,8 @@ def make_spec(  # pylint: disable=inconsistent-return-statements  # noqa: MC0001
     Specs may be created for enumerated types using a Python ``set`` or ``frozenset``
     or using Python :py:class:`enum.Enum` types. Specs created for enumerated types
     based on :py:class:`enum.Enum` values validate the Enum name, value, or Enum
-    singleton and conform the the Enum singleton.
+    singleton and conform the input value to the corresponding :py:class:`enum.Enum`
+    value.
 
     Specs may be created for homogeneous collections using a Python ``list`` type.
     Callers can specify a few additional parameters for collection specs by providing
