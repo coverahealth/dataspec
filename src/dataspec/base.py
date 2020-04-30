@@ -85,7 +85,7 @@ def make_conformer(f: Conformer) -> "IConformer":
     ...
 
 
-def make_conformer(f):
+def make_conformer(f: Optional[Conformer]) -> Optional["IConformer"]:
     """
     Coerce ``f`` to a :py:class:`dataspec.IConformer` instance if it is a function or
     return the value otherwise if it is already an ``IConformer`` or ``None``.
@@ -102,7 +102,7 @@ def make_conformer(f):
         raise TypeError(f"Cannot coerce object of type {type(f)} to Conformer")
 
 
-@attr.s(frozen=True, slots=sys.version_info >= (3, 7))
+@attr.s(frozen=True, slots=_USE_SLOTS_FOR_GENERIC)
 class IConformer(Generic[T, V], ABC):
     """
     Interface for complex conformers.
@@ -133,7 +133,7 @@ class IConformer(Generic[T, V], ABC):
             if the value cannot be conformed
         """
 
-    def compose(self, f: Union["Conformer", ConformerFn]) -> "IConformer":
+    def compose(self, f: Conformer) -> "IConformer":
         """
         Return an IConformer instance which is the composition of the current instance
         and the IConformer produced by calling ``make_conformer`` on ``f``.
