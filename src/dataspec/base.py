@@ -133,16 +133,22 @@ class IConformer(Generic[T, V], ABC):
             if the value cannot be conformed
         """
 
-    def compose(self, f: Conformer) -> "IConformer":
+    def compose(self, f: Optional[Conformer]) -> "IConformer":
         """
         Return an IConformer instance which is the composition of the current instance
         and the IConformer produced by calling ``make_conformer`` on ``f``.
 
+        If ``f`` is ``None``, then this method will return the existing IConformer
+        instance unchanged.
+
         :param f: an :py:class:`dataspec.IConformer` or something that can be coerced
-            to one
+            to one or :py:obj:`None`
         :return: a new :py:class:`dataspec.IConformer` instance
         """
         new_conformer = make_conformer(f)
+
+        if new_conformer is None:
+            return self
 
         def wrapped_conformer(v, is_valid: bool = False):
             return new_conformer(self(v, is_valid=is_valid), is_valid=is_valid)
@@ -661,9 +667,7 @@ class CollSpec(Spec):
         return cls(
             tag or "coll",
             spec=spec,
-            conformer=conform_coll.compose(conformer)
-            if conformer is not None
-            else conform_coll,
+            conformer=conform_coll.compose(conformer),
             out_type=out_type,
             validate_coll=validate_coll,
         )
@@ -743,9 +747,7 @@ class DictSpec(Spec):
             tag or "map",
             reqkeyspecs=reqkeys,
             optkeyspecs=optkeys,
-            conformer=conform_mapping.compose(conformer)
-            if conformer is not None
-            else conform_mapping,
+            conformer=conform_mapping.compose(conformer),
         )
 
     def validate(self, d) -> Iterator[ErrorDetails]:  # pylint: disable=arguments-differ
@@ -952,9 +954,7 @@ class TupleSpec(Spec):
             tag or "tuple",
             pred=pred,
             specs=specs,
-            conformer=conform_tuple.compose(conformer)
-            if conformer is not None
-            else conform_tuple,
+            conformer=conform_tuple.compose(conformer),
             namedtuple=namedtuple_type,  # type: ignore
         )
 
