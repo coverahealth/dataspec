@@ -99,7 +99,7 @@ def make_conformer(f: Optional[Conformer]) -> Optional["IConformer"]:
         return f
     elif callable(f):
         return FunctionConformer(f)
-    else:
+    else:  # pragma: no cover
         raise TypeError(f"Cannot coerce object of type {type(f)} to Conformer")
 
 

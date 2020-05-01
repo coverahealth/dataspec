@@ -404,15 +404,25 @@ class TestDictSpecConformation:
         )
 
     def test_dict_conformation(self, dict_spec: Spec):
-        conformed = dict_spec.conform(
-            {"first_name": "chris", "last_name": "rink", "date_of_birth": "1990-01-14"}
-        )
+        assert dict_spec.conformer is not None
+
+        data = {
+            "first_name": "chris",
+            "last_name": "rink",
+            "date_of_birth": "1990-01-14",
+        }
+        conformed = dict_spec.conform(data)
+        # call dict_spec.conformer directly to exercise non-valid code branch
+        assert conformed == dict_spec.conformer(data)
         assert isinstance(conformed, dict)
         assert "Chris" == conformed["first_name"]
         assert "Rink" == conformed["last_name"]
         assert date(year=1990, month=1, day=14) == conformed["date_of_birth"]
 
-        conformed = dict_spec.conform({"first_name": "peter", "last_name": "criss"})
+        data = {"first_name": "peter", "last_name": "criss"}
+        conformed = dict_spec.conform(data)
+        # call dict_spec.conformer directly to exercise non-valid code branch
+        assert conformed == dict_spec.conformer(data)
         assert isinstance(conformed, dict)
         assert "Peter" == conformed["first_name"]
         assert "Criss" == conformed["last_name"]
@@ -788,7 +798,12 @@ class TestTupleSpecConformation:
         )
 
     def test_tuple_conformation(self, tuple_spec: Spec):
-        conformed = tuple_spec.conform(("chris", "rink", 29))
+        assert tuple_spec.conformer is not None
+
+        data = ("chris", "rink", 29)
+        conformed = tuple_spec.conform(data)
+        # call tuple_spec.conformer directly to exercise non-valid code branch
+        assert conformed == tuple_spec.conformer(data)
         assert type(conformed) is tuple
         assert "Chris" == conformed[0]
         assert "Rink" == conformed[1]
@@ -806,7 +821,12 @@ class TestTupleSpecConformation:
         )
 
     def test_namedtuple_conformation(self, namedtuple_spec: Spec):
-        conformed = namedtuple_spec.conform(("chris", "rink", 29))
+        assert namedtuple_spec.conformer is not None
+
+        data = ("chris", "rink", 29)
+        conformed = namedtuple_spec.conform(data)
+        # call namedtuple_spec.conformer directly to exercise non-valid code branch
+        assert conformed == namedtuple_spec.conformer(data)
         assert type(conformed).__name__ == "user_profile"
         assert "Chris" == conformed.first_name == conformed[0]
         assert "Rink" == conformed.last_name == conformed[1]
