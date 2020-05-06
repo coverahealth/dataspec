@@ -49,35 +49,65 @@ from dataspec.base import (
 
 
 def blankable_spec(
-    *args: Union[Tag, SpecPredicate], conformer: Optional[Conformer] = None
+    tag_or_pred: Union[Tag, SpecPredicate],
+    *preds: SpecPredicate,
+    conformer: Optional[Conformer] = None,
 ):
     """
     Return a Spec which will validate values either by the input Spec or allow the
     empty string.
 
-    The returned Spec is equivalent to ``s.any(spec, {""})``.
+    The returned Spec is roughly equivalent to ``s.any(spec, {""})``.
 
-    :param tag: an optional tag for the resulting spec
-    :param pred: a Spec or value which can be converted into a Spec
+    If no Specs or Spec predicates is given, a :py:class:`ValueError` will be raised.
+
+    :param tag_or_pred: an optional tag for the resulting Spec *or* a Spec or value
+        which can be converted into a Spec; if no tag is provided, the default is
+        ``"blankable"``
+    :param preds: if a tag is provided for ``tag_or_pred``, exactly Spec predicate as
+        described in ``tag_or_pred``; otherwise, nothing
     :param conformer: an optional conformer for the value
     :return: a Spec which validates either according to ``pred`` or the empty string
     """
-    tag, preds = tag_maybe(*args)  # pylint: disable=no-value-for-parameter
-    assert len(preds) == 1, "Only one predicate allowed"
-    return any_spec(
-        tag or "blankable", preds[0], {""}, conformer=conformer  # type: ignore
+    tag, preds = tag_maybe(tag_or_pred, *preds)
+
+    if len(preds) != 1:
+        raise ValueError(
+            "Must provide exactly one Spec predicate for 'blankable' Specs"
+        )
+
+    spec = make_spec(cast("SpecPredicate", preds[0]))
+
+    # Use a custom validator function here so user-provided Spec still includes that
+    # Spec's tag in its ErrorDetails, but we only include the "blankable" tag in the
+    # ErrorDetails if the value is not blank
+    def blank_or_pred(e) -> Iterator[ErrorDetails]:
+        if e == "":
+            return
+
+        spec_errors = list(spec.validate(e))
+        if spec_errors:
+            yield from spec_errors
+            yield ErrorDetails(
+                message=f"Value '{e}' is not blank", pred=blank_or_pred, value=e,
+            )
+
+    return ValidatorSpec(
+        tag or "blankable",
+        blank_or_pred,
+        conformer=compose_conformers(spec.conformer, conformer),
     )
 
 
 def bool_spec(
-    tag: Optional[Tag] = None,
+    tag: Tag = "bool",
     allowed_values: Optional[Set[bool]] = None,
     conformer: Optional[Conformer] = None,
 ) -> Spec:
     """
     Return a Spec which will validate boolean values.
 
-    :param tag: an optional tag for the resulting spec
+    :param tag: an optional tag for the resulting spec; default is ``"bool"``
     :param allowed_values: if specified, a set of allowed boolean values
     :param conformer: an optional conformer for the value
     :return: a Spec which validates boolean values
@@ -101,13 +131,11 @@ def bool_spec(
 
         validators.append(is_allowed_bool_type)
 
-    return ValidatorSpec.from_validators(
-        tag or "bool", *validators, conformer=conformer
-    )
+    return ValidatorSpec.from_validators(tag, *validators, conformer=conformer)
 
 
 def bytes_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
-    tag: Optional[Tag] = None,
+    tag: Tag = "bytes",
     type_: Tuple[Union[Type[bytes], Type[bytearray]], ...] = (bytes, bytearray),
     length: Optional[int] = None,
     minlength: Optional[int] = None,
@@ -138,7 +166,7 @@ def bytes_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
     :py:obj:`typing.Pattern`, the supplied pattern will be used. In both cases, the
     :py:func:`re.fullmatch` will be used to validate input strings.
 
-    :param tag: an optional tag for the resulting spec
+    :param tag: an optional tag for the resulting spec; default is ``"bytes"``
     :param type_:  a single :py:class:`type` or tuple of :py:class:`type` s which
         will be used to type check input values by the resulting Spec
     :param length: if specified, the resulting Spec will validate that bytes are
@@ -157,7 +185,7 @@ def bytes_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
     def is_bytes(s: Any) -> bool:
         return isinstance(s, type_)
 
-    validators: List[Union[ValidatorFn, ValidatorSpec]] = [is_bytes]
+    validators: List[ValidatorFn] = [is_bytes]
 
     if length is not None:
 
@@ -226,13 +254,12 @@ def bytes_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
 
         validators.append(bytes_matches_regex)
 
-    return ValidatorSpec.from_validators(
-        tag or "bytes", *validators, conformer=conformer
-    )
+    return ValidatorSpec.from_validators(tag, *validators, conformer=conformer)
 
 
 def default_spec(
-    *args: Union[Tag, SpecPredicate],
+    tag_or_pred: Union[Tag, SpecPredicate],
+    *preds: SpecPredicate,
     default: Any = None,
     conformer: Optional[Conformer] = None,
 ) -> Spec:
@@ -247,29 +274,35 @@ def default_spec(
     This Spec **will allow any value to pass**, but will conform to the given default
     if the data does not satisfy the input Spec.
 
-    :param tag: an optional tag for the resulting spec
-    :param pred: a Spec or value which can be converted into a Spec
+    If no Specs or Spec predicates is given, a :py:class:`ValueError` will be raised.
+
+    :param tag_or_pred: an optional tag for the resulting Spec *or* a Spec or value
+        which can be converted into a Spec; if no tag is provided, the default is
+        ``"default"``
+    :param preds: if a tag is provided for ``tag_or_pred``, exactly Spec predicate as
+        described in ``tag_or_pred``; otherwise, nothing
     :param default: the default value to apply if the Spec does not validate a value
     :param conformer: an optional conformer for the value
     :return: a Spec which validates every value, but which conforms values to a default
     """
-    tag, preds = tag_maybe(*args)  # pylint: disable=no-value-for-parameter
-    assert len(preds) == 1, "Only one predicate allowed"
+    tag, preds = tag_maybe(tag_or_pred, *preds)
+
+    if len(preds) != 1:
+        raise ValueError("Must provide exactly one Spec predicate for 'default' Specs")
+
     return any_spec(
         tag or "default",
-        preds[0],  # type: ignore[arg-type]  # noqa: F821
+        preds[0],
         every_spec(conformer=lambda _: default),
         conformer=conformer,
     )
 
 
-def every_spec(
-    tag: Optional[Tag] = None, conformer: Optional[Conformer] = None
-) -> Spec:
+def every_spec(tag: Tag = "every", conformer: Optional[Conformer] = None) -> Spec:
     """
     Return a Spec which validates every possible value.
 
-    :param tag: an optional tag for the resulting spec
+    :param tag: an optional tag for the resulting spec; default is ``"every"``
     :param conformer: an optional conformer for the value
     :return: a Spec which validates any value
     """
@@ -277,7 +310,7 @@ def every_spec(
     def always_true(_) -> bool:
         return True
 
-    return PredicateSpec(tag or "every", always_true, conformer=conformer)
+    return PredicateSpec(tag, always_true, conformer=conformer)
 
 
 _DEFAULT_STRPTIME_DATE = date(1900, 1, 1)
@@ -328,7 +361,7 @@ def _make_datetime_spec_factory(  # noqa: MC0001
 
     {aware_docstring_blurb}
 
-    :param tag: an optional tag for the resulting spec
+    :param tag: an optional tag for the resulting spec; default is ``"{type_.__name__}"``
     :param format: if specified, a time format string which will be fed to
         :py:meth:`datetime.{type_.__name__}.strptime` to convert the input string
         to a :py:class:`datetime.{type_.__name__}` before applying the other
@@ -366,7 +399,7 @@ def _make_datetime_spec_factory(  # noqa: MC0001
         strptime = datetime.strptime  # type: ignore
 
     def _datetime_spec_factory(  # pylint: disable=too-many-arguments
-        tag: Optional[Tag] = None,
+        tag: Tag = type_.__name__,
         format_: Optional[str] = None,
         before: Optional[type_] = None,  # type: ignore
         after: Optional[type_] = None,  # type: ignore
@@ -455,16 +488,12 @@ def _make_datetime_spec_factory(  # noqa: MC0001
                         yield from validate(dt)
 
             return ValidatorSpec(
-                tag or type.__name__,
+                tag,
                 validate_datetime_str,
-                conformer=compose_conformers(
-                    conform_datetime_str, *filter(None, (conformer,))
-                ),
+                conformer=compose_conformers(conform_datetime_str, conformer),
             )
         else:
-            return ValidatorSpec.from_validators(
-                tag or type_.__name__, *validators, conformer=conformer
-            )
+            return ValidatorSpec.from_validators(tag, *validators, conformer=conformer)
 
     _datetime_spec_factory.__doc__ = docstring
     return _datetime_spec_factory
@@ -481,7 +510,7 @@ except ImportError:
 else:
 
     def datetime_str_spec(  # pylint: disable=too-many-arguments
-        tag: Optional[Tag] = None,
+        tag: Tag = "datetime_str",
         iso_only: bool = False,
         before: Optional[datetime] = None,
         after: Optional[datetime] = None,
@@ -510,7 +539,8 @@ else:
         range of valid ISO 8601 strings than Python 3.7+'s
         :py:func:`datetime.datetime.fromisoformat` function.
 
-        :param tag: an optional tag for the resulting spec
+        :param tag: an optional tag for the resulting spec; default is
+            ``"datetime_str"``
         :param iso_only: if True, restrict the set of allowed date strings to those
             formatted as ISO 8601 datetime strings; default is False
         :param before: if specified, a datetime that specifies the latest instant
@@ -523,8 +553,6 @@ else:
             :py:func:`dateutil.parser.parse` will be used
         :return: a Spec which validates strings containing date/time strings
         """
-
-        tag = tag or "datetime_str"
 
         @pred_to_validator("Value '{value}' is not type 'str'", complement=True)
         def is_str(x: Any) -> bool:
@@ -549,14 +577,14 @@ else:
             tag,
             is_str,
             str_contains_datetime,
-            conformer=compose_conformers(
-                cast(Conformer, parse_date_str), *filter(None, (conformer,))
-            ),
+            conformer=compose_conformers(cast(Conformer, parse_date_str), conformer),
         )
 
 
 def dict_tag_spec(
-    *args: Union[Tag, SpecPredicate], conformer: Optional[Conformer] = None
+    tag_or_pred: Union[Tag, SpecPredicate],
+    *preds: SpecPredicate,
+    conformer: Optional[Conformer] = None,
 ) -> Spec:
     """
     Return a mapping Spec for which the Tags for each of the ``dict`` values is set
@@ -571,15 +599,19 @@ def dict_tag_spec(
     For more precise tagging of mapping Spec values, use the default ``s`` constructor
     with a ``dict`` value.
 
-    :param tag: an optional tag for the resulting spec
-    :param pred: a mapping spec predicate
+    :param tag_or_pred: an optional tag for the resulting spec or the first Spec or
+        value which can be converted into a Spec; if no tag is provided, default is
+        ``"map"``
+    :param preds: if a tag is given, exactly one mapping spec predicate; if no tag is
+        given, this should not be specified
     :param conformer: an optional conformer for the value
     :return: a mapping Spec
     """
-    tag, preds = tag_maybe(*args)  # pylint: disable=no-value-for-parameter
-    if len(preds) > 1:
+    tag, preds = tag_maybe(tag_or_pred, *preds)
+
+    if len(preds) != 1:
         raise ValueError(
-            f"Dict specs may only specify one spec predicate, not {len(preds)}"
+            f"Dict specs must specify exactly one spec predicate, not {len(preds)}"
         )
 
     pred = preds[0]
@@ -592,7 +624,7 @@ def dict_tag_spec(
         return k
 
     return make_spec(
-        *((tag,) if tag is not None else ()),
+        *filter(None, (tag,)),  # type: ignore[arg-type]  # noqa: F821
         {k: make_spec(_unwrap_opt_key(k), v) for k, v in pred.items()},
         conformer=conformer,
     )
@@ -702,7 +734,7 @@ def _obj_attr_validator(  # pylint: disable=too-many-arguments
 
 
 def email_spec(
-    tag: Optional[Tag] = None, conformer: Optional[Conformer] = None, **kwargs
+    tag: Tag = "email", conformer: Optional[Conformer] = None, **kwargs
 ) -> Spec:
     """
     Return a spec that can validate strings containing email addresses.
@@ -735,7 +767,7 @@ def email_spec(
     Providing a keyword argument for a non-existent field of
     :py:class:`email.headerregistry.Address` will produce a :py:exc:`ValueError`.
 
-    :param tag: an optional tag for the resulting spec
+    :param tag: an optional tag for the resulting spec; default is ``"email"``
     :param username: if specified, require an exact match for ``username``
     :param username_in: if specified, require ``username`` to match at least one value in the set
     :param username_regex: if specified, require ``username`` to match the regex pattern
@@ -745,7 +777,6 @@ def email_spec(
     :param conformer: an optional conformer for the value
     :return: a Spec which can validate that a string contains an email address
     """
-    tag = tag or "email"
 
     @pred_to_validator(f"Value '{{value}}' is not type 'str'", complement=True)
     def is_str(x: Any) -> bool:
@@ -800,33 +831,57 @@ def email_spec(
 
 
 def nilable_spec(
-    *args: Union[Tag, SpecPredicate], conformer: Optional[Conformer] = None
+    tag_or_pred: Union[Tag, SpecPredicate],
+    *preds: SpecPredicate,
+    conformer: Optional[Conformer] = None,
 ) -> Spec:
     """
     Return a Spec which will validate values either by the input Spec or allow
     the value :py:obj:`None`.
 
-    :param tag: an optional tag for the resulting spec
-    :param pred: a Spec or value which can be converted into a Spec
+    The returned Spec is roughly equivalent to ``s.any(spec, {None})``.
+
+    If no Specs or Spec predicates is given, a :py:class:`ValueError` will be raised.
+
+    :param tag_or_pred: an optional tag for the resulting Spec *or* a Spec or value
+        which can be converted into a Spec; if no tag is provided, the default is
+        ``"nilable"``
+    :param preds: if a tag is provided for ``tag_or_pred``, exactly one Spec predicate
+        as described in ``tag_or_pred``; otherwise, nothing
     :param conformer: an optional conformer for the value
     :return: a Spec which validates either according to ``pred`` or the value
         :py:obj:`None`
     """
-    tag, preds = tag_maybe(*args)  # pylint: disable=no-value-for-parameter
-    assert len(preds) == 1, "Only one predicate allowed"
+    tag, preds = tag_maybe(tag_or_pred, *preds)
+
+    if len(preds) != 1:
+        raise ValueError("Must provide exactly one Spec predicate for 'nilable' Specs")
+
     spec = make_spec(cast("SpecPredicate", preds[0]))
 
-    def nil_or_pred(e) -> bool:
+    # Use a custom validator function here so user-provided Spec still includes that
+    # Spec's tag in its ErrorDetails, but we only include the "nilable" tag in the
+    # ErrorDetails if the value is not None
+    def nil_or_pred(e) -> Iterator[ErrorDetails]:
         if e is None:
-            return True
+            return
 
-        return spec.is_valid(e)
+        spec_errors = list(spec.validate(e))
+        if spec_errors:
+            yield from spec_errors
+            yield ErrorDetails(
+                message=f"Value '{e}' is not None", pred=nil_or_pred, value=e,
+            )
 
-    return PredicateSpec(tag or "nilable", pred=nil_or_pred, conformer=conformer)
+    return ValidatorSpec(
+        tag or "nilable",
+        nil_or_pred,
+        conformer=compose_conformers(spec.conformer, conformer),
+    )
 
 
 def num_spec(
-    tag: Optional[Tag] = None,
+    tag: Tag = "num",
     type_: Union[Type, Tuple[Type, ...]] = (float, int),
     min_: Union[complex, float, int, None] = None,
     max_: Union[complex, float, int, None] = None,
@@ -845,7 +900,7 @@ def num_spec(
     Python's ``<`` operator. If ``min_`` and ``max_`` are specified and ``max_`` is
     less than ``min_``, a :py:exc:`ValueError` will be raised.
 
-    :param tag: an optional tag for the resulting spec
+    :param tag: an optional tag for the resulting spec; default is ``"num"``
     :param type_: a single :py:class:`type` or tuple of :py:class:`type` s which
         will be used to type check input values by the resulting Spec
     :param min_: if specified, the resulting Spec will validate that numeric values
@@ -882,15 +937,43 @@ def num_spec(
         if min_ > max_:  # type: ignore
             raise ValueError("Cannot define a spec with min greater than max")
 
-    return ValidatorSpec.from_validators(tag or "num", *validators, conformer=conformer)
+    return ValidatorSpec.from_validators(tag, *validators, conformer=conformer)
 
 
 def obj_spec(
-    *args: Union[Tag, SpecPredicate], conformer: Optional[Conformer] = None
+    tag_or_pred: Union[Tag, SpecPredicate],
+    *preds: SpecPredicate,
+    conformer: Optional[Conformer] = None,
 ) -> Spec:
-    """Return a Spec for an Object."""
-    tag, preds = tag_maybe(*args)  # pylint: disable=no-value-for-parameter
-    assert len(preds) == 1, "Only one predicate allowed"
+    """
+    Return a Spec for an arbitrary object.
+
+    Object Specs are defined as a mapping Spec with only string keys. The resulting
+    Spec will validate arbitrary objects by calling :py:func:`getattr` on the input
+    value with the mapping key names to validate the value contained on that attribute.
+
+    Object Specs support optional keys via :py:meth:`dataspec.SpecAPI.opt`. The value
+    must be a string.
+
+    Object Specs do not perform any type checks. Type checks can be defined separately
+    by calling :py:func:`dataspec.s` with a type.
+
+    If no Specs or Spec predicates is given, a :py:class:`ValueError` will be raised.
+
+    :param tag_or_pred: an optional tag for the resulting Spec *or* a mapping Spec
+        predicate with string keys (potentially wrapped by
+        :py:meth:`dataspec.SpecAPI.opt`) and Spec predicates for values; if no tag is
+        provided, the default is ``"object"``
+    :param preds: if a tag is provided for ``tag_or_pred``, exactly one mapping Spec
+        predicate as described in ``tag_or_pred``; otherwise, nothing
+    :param conformer: an optional conformer for the value
+    :return: a Spec which validates generic objects by their attributes
+    """
+    tag, preds = tag_maybe(tag_or_pred, *preds)
+
+    if len(preds) != 1:
+        raise ValueError("Must provide exactly one Spec predicate for 'obj' Specs")
+
     return ObjectSpec.from_val(
         tag or "object",
         cast(Mapping[ObjectSpecKey, SpecPredicate], preds[0]),
@@ -901,7 +984,7 @@ def obj_spec(
 T = TypeVar("T")
 
 
-def opt_key(k: T) -> OptionalKey:
+def opt_key(k: T) -> OptionalKey[T]:
     """Return ``k`` wrapped in a marker object indicating that the key is optional in
     associative specs."""
     return OptionalKey(k)
@@ -927,7 +1010,7 @@ else:
             return phonenumbers.format_number(p, phonenumbers.PhoneNumberFormat.E164)
 
     def phonenumber_spec(
-        tag: Optional[Tag] = None,
+        tag: Tag = "phonenumber_str",
         region: Optional[str] = None,
         is_possible: bool = True,
         is_valid: bool = True,
@@ -960,7 +1043,8 @@ else:
         By default, the Spec supplies a conformer which conforms telephone numbers to
         the international E.164 format, which is globally unique.
 
-        :param tag: an optional tag for the resulting spec
+        :param tag: an optional tag for the resulting spec; default is
+            ``"phonenumber_str"``
         :param region: an optional two-letter country code which, if provided, will
             be checked against the parsed telephone number's region
         :param is_possible: if True and the input number can be successfully parsed,
@@ -973,7 +1057,6 @@ else:
         :return: a Spec which validates strings containing telephone numbers
         """
 
-        tag = tag or "phonenumber_str"
         default_conformer = conform_phonenumber
 
         @pred_to_validator("Value '{value}' is not type 'str'", complement=True)
@@ -1045,46 +1128,32 @@ else:
             tag,
             is_str,
             str_contains_phonenumber,
-            conformer=compose_conformers(
-                default_conformer, *filter(None, (conformer,))
-            ),
+            conformer=compose_conformers(default_conformer, conformer),
         )
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class StrFormat:
-    validator: ValidatorSpec
+    validate: ValidatorFn
     conformer: Optional[Conformer] = None
-
-    @property
-    def conforming_validator(self) -> ValidatorSpec:
-        if self.conformer is not None:
-            return cast(ValidatorSpec, self.validator.with_conformer(self.conformer))
-        else:
-            return self.validator
 
 
 _STR_FORMATS: MutableMapping[str, StrFormat] = {}
 _STR_FORMAT_LOCK = threading.Lock()
 
 
-def register_str_format_spec(
-    name: str, validate: ValidatorSpec, conformer: Optional[Conformer] = None
-) -> None:  # pragma: no cover
-    """Register a new String format, which will be checked by the ValidatorSpec
-    ``validate``. A conformer can be supplied for the string format which will
-    be applied if desired, but may otherwise be ignored."""
-    with _STR_FORMAT_LOCK:
-        _STR_FORMATS[name] = StrFormat(validate, conformer=conformer)
-
-
 def register_str_format(
     tag: Tag, conformer: Optional[Conformer] = None
-) -> Callable[[Callable], ValidatorFn]:
-    """Decorator to register a Validator function as a string format."""
+) -> Callable[[ValidatorFn], ValidatorFn]:
+    """
+    Register a new String format, which will be checked by the validator function
+    ``validate``. A conformer can be supplied for the string format which will be
+    applied if desired, but may otherwise be ignored.
+    """
 
-    def create_str_format(f) -> ValidatorFn:
-        register_str_format_spec(tag, ValidatorSpec(tag, f), conformer=conformer)
+    def create_str_format(f: ValidatorFn) -> ValidatorFn:
+        with _STR_FORMAT_LOCK:
+            _STR_FORMATS[tag] = StrFormat(f, conformer=conformer)
         return f
 
     return create_str_format
@@ -1160,7 +1229,7 @@ else:
 
 
 def str_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
-    tag: Optional[Tag] = None,
+    tag: Tag = "str",
     length: Optional[int] = None,
     minlength: Optional[int] = None,
     maxlength: Optional[int] = None,
@@ -1214,7 +1283,7 @@ def str_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
        time string
      * ``uuid`` validates that a string contains a valid UUID
 
-    :param tag: an optional tag for the resulting spec
+    :param tag: an optional tag for the resulting spec; default is ``"str"``
     :param length: if specified, the resulting Spec will validate that strings are
         exactly ``length`` characters long by :py:func:`len`
     :param minlength: if specified, the resulting Spec will validate that strings are
@@ -1236,7 +1305,7 @@ def str_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
     def is_str(s: Any) -> bool:
         return isinstance(s, str)
 
-    validators: List[Union[ValidatorFn, ValidatorSpec]] = [is_str]
+    validators: List[ValidatorFn] = [is_str]
 
     if length is not None:
 
@@ -1308,16 +1377,19 @@ def str_spec(  # noqa: MC0001  # pylint: disable=too-many-arguments
         validators.append(str_matches_regex)
     elif regex is None and format_ is not None and conform_format is None:
         with _STR_FORMAT_LOCK:
-            validators.append(_STR_FORMATS[format_].validator)
+            validators.append(_STR_FORMATS[format_].validate)
     elif regex is None and format_ is None and conform_format is not None:
         with _STR_FORMAT_LOCK:
-            validators.append(_STR_FORMATS[conform_format].conforming_validator)
+            fmt = _STR_FORMATS[conform_format]
+
+        conformer = compose_conformers(fmt.conformer, conformer)
+        validators.append(fmt.validate)
     elif sum(int(v is not None) for v in [regex, format_, conform_format]) > 1:
         raise ValueError(
             "Cannot define a spec with more than one of: regex, format, conforming format"
         )
 
-    return ValidatorSpec.from_validators(tag or "str", *validators, conformer=conformer)
+    return ValidatorSpec.from_validators(tag, *validators, conformer=conformer)
 
 
 _URL_RESULT_FIELDS = frozenset(
@@ -1337,7 +1409,7 @@ _URL_DISALLOWED_REGEX_FIELDS = frozenset({"port"})
 
 
 def url_str_spec(
-    tag: Optional[Tag] = None,
+    tag: Tag = "url_str",
     query: Optional[SpecPredicate] = None,
     conformer: Optional[Conformer] = None,
     **kwargs,
@@ -1381,7 +1453,7 @@ def url_str_spec(
     Providing a keyword argument for a non-existent field of
     :py:class:`urllib.parse.ParseResult` will produce a :py:exc:`ValueError`.
 
-    :param tag: an optional tag for the resulting spec
+    :param tag: an optional tag for the resulting spec; default is ``"url_str"``
     :param query: an optional spec for the :py:class:`dict` created by calling
         :py:func:`urllib.parse.parse_qs` on the :py:attr:`urllib.parse.ParseResult.query`
         attribute of the parsed URL
@@ -1419,7 +1491,7 @@ def url_str_spec(
     def is_str(s: Any) -> bool:
         return isinstance(s, str)
 
-    validators: List[Union[ValidatorFn, ValidatorSpec]] = [is_str]
+    validators: List[ValidatorFn] = [is_str]
 
     child_validators = []
     for url_attr in _URL_RESULT_FIELDS:
@@ -1483,13 +1555,11 @@ def url_str_spec(
 
     validators.append(validate_url)
 
-    return ValidatorSpec.from_validators(
-        tag or "url_str", *validators, conformer=conformer
-    )
+    return ValidatorSpec.from_validators(tag, *validators, conformer=conformer)
 
 
 def uuid_spec(
-    tag: Optional[Tag] = None,
+    tag: Tag = "uuid",
     versions: Optional[Set[int]] = None,
     conformer: Optional[Conformer] = None,
 ) -> Spec:
@@ -1503,7 +1573,7 @@ def uuid_spec(
     of RFC 4122 variant UUIDs. If ``versions`` specifies an invalid RFC 4122 variant
     UUID version, a :py:exc:`ValueError` will be raised.
 
-    :param tag: an optional tag for the resulting spec
+    :param tag: an optional tag for the resulting spec; default is ``"uuid"``
     :param versions: an optional set of integers of 1, 3, 4, and 5 which the input
         :py:class:`uuid.UUID` must match; otherwise, any version will pass the Spec
     :param conformer: an optional conformer for the value
@@ -1514,7 +1584,7 @@ def uuid_spec(
     def is_uuid(v: Any) -> bool:
         return isinstance(v, uuid.UUID)
 
-    validators: List[Union[ValidatorFn, ValidatorSpec]] = [is_uuid]
+    validators: List[ValidatorFn] = [is_uuid]
 
     if versions is not None:
 
@@ -1535,6 +1605,4 @@ def uuid_spec(
 
         validators.append(uuid_is_version)
 
-    return ValidatorSpec.from_validators(
-        tag or "uuid", *validators, conformer=conformer
-    )
+    return ValidatorSpec.from_validators(tag, *validators, conformer=conformer)
