@@ -476,37 +476,22 @@ class ValidatorSpec(Spec):
 
     @classmethod
     def from_validators(
-        cls,
-        tag: Tag,
-        *preds: Union[ValidatorFn, "ValidatorSpec"],
-        conformer: Optional[Conformer] = None,
+        cls, tag: Tag, *preds: ValidatorFn, conformer: Optional[Conformer] = None,
     ) -> Spec:
         """Return a single Validator spec from the composition of multiple validator
-        functions or ValidatorSpec instances."""
+        functions."""
         assert len(preds) > 0, "At least on predicate must be specified"
 
-        # Avoid wrapping an existing validator spec or singleton spec in an extra layer
-        # of indirection
+        # Avoid wrapping an existing validator function in an extra layer of
+        # indirection
         if len(preds) == 1:
-            if isinstance(preds[0], ValidatorSpec):
-                return preds[0]
-            else:
-                return ValidatorSpec(tag, preds[0], conformer=conformer)
-
-        specs = []
-        for pred in preds:
-            if isinstance(pred, ValidatorSpec):
-                specs.append(pred)
-            else:
-                specs.append(ValidatorSpec(pred.__name__, pred))
+            return ValidatorSpec(tag, preds[0], conformer=conformer)
 
         def do_validate(v) -> Iterator[ErrorDetails]:
-            for spec in specs:
-                yield from spec.validate(v)
+            for pred in preds:
+                yield from pred(v)
 
-        return cls(
-            tag, do_validate, compose_spec_conformers(*specs, conform_final=conformer)
-        )
+        return cls(tag, do_validate, conformer=conformer)
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -875,9 +860,7 @@ def kv_spec(
             return {k: valspec.conform(v) for k, v in d.items()}
 
     return ValidatorSpec(
-        tag,
-        _kv_valid,
-        conformer=compose_conformer_fns(conform_mapping, *filter(None, (conformer,))),
+        tag, _kv_valid, conformer=compose_conformer_fns(conform_mapping, conformer),
     )
 
 
@@ -978,9 +961,7 @@ class SetSpec(Spec):
                     [mem, mem.name, mem.value] for mem in pred  # type: ignore[var-annotated]  # noqa
                 )
             ),
-            conformer=compose_conformer_fns(
-                _enum_conformer(pred), *filter(None, (conformer,)),
-            ),
+            conformer=compose_conformer_fns(_enum_conformer(pred), conformer,),
         )
 
 
@@ -1072,13 +1053,18 @@ def _enrich_errors(
         yield error.with_details(tag, loc=loc)
 
 
-def compose_conformer_fns(*conformers: ConformerFn) -> ConformerFn:
+def compose_conformer_fns(*conformers: Optional[ConformerFn]) -> Optional[ConformerFn]:
     """
     Return a single conformer function which is the composition of the input
     conformers.
 
     If a single conformer is given, return the conformer.
     """
+
+    conformers = tuple(filter(None, conformers))
+
+    if not conformers:
+        return None
 
     if len(conformers) == 1:
         return conformers[0]
@@ -1092,25 +1078,6 @@ def compose_conformer_fns(*conformers: ConformerFn) -> ConformerFn:
         return conformed_v
 
     return do_conform
-
-
-def compose_spec_conformers(
-    *specs: Spec, conform_final: Optional[ConformerFn] = None
-) -> ConformerFn:
-    """
-    Return a single conformer which is the composition of the conformers from each of
-    the child specs.
-
-    Apply the ``conform_final`` conformer on the final return from the composition, if
-    any.
-
-    This function bypasses the :py:meth:`dataspec.Spec.conform` method and accesses
-    :py:attr:`dataspec.Spec.conformer` directly.
-    """
-
-    return compose_conformer_fns(
-        *filter(None, chain((spec.conformer for spec in specs), (conform_final,)))
-    )
 
 
 def all_spec(
@@ -1142,8 +1109,9 @@ def all_spec(
     This method is not suitable for producing a union of mapping Specs. To merge
     mapping Specs, use :py:meth:`dataspec.SpecAPI.merge` instead.
 
-    :param tag_or_pred: an optional tag for the resulting spec or the first Spec
-        or value which can be converted into a Spec
+    :param tag_or_pred: an optional tag for the resulting spec or the first Spec or
+        value which can be converted into a Spec; if no tag is provided, the default is
+        ``"all"``
     :param preds: zero or more Specs or values which can be converted into a Spec
     :param conformer: an optional conformer which will be applied to the final
         conformed value produced by the input Specs conformers
@@ -1155,7 +1123,11 @@ def all_spec(
         raise ValueError("Must provide at least one Spec for 'all' Specs")
 
     if len(preds) == 1:
-        return make_spec(*filter(None, (tag,)), preds[0], conformer=conformer)
+        return make_spec(
+            *filter(None, (tag,)),  # type: ignore[arg-type]  # noqa: F821
+            preds[0],
+            conformer=conformer,
+        )
 
     specs = [make_spec(pred) for pred in preds]
 
@@ -1174,7 +1146,9 @@ def all_spec(
     return ValidatorSpec(
         tag or "all",
         _all_valid,
-        conformer=compose_spec_conformers(*specs, conform_final=conformer),
+        conformer=compose_conformer_fns(
+            *(spec.conformer for spec in specs), conformer,
+        ),
     )
 
 
@@ -1212,8 +1186,9 @@ def any_spec(
     :py:func:`dataspec.s` with the given ``tag`` and ``conformer`` and the value
     returned without merging.
 
-    :param tag_or_pred: an optional tag for the resulting spec or the first Spec
-        or value which can be converted into a Spec
+    :param tag_or_pred: an optional tag for the resulting spec or the first Spec or
+        value which can be converted into a Spec; if no tag is provided, the default is
+        ``"any"``
     :param preds: zero or more Specs or values which can be converted into a Spec
     :param tag_conformed: if :py:obj:`True`, the conformed value will be wrapped in a
         2-tuple where the first element is the successful spec and the second element
@@ -1227,7 +1202,11 @@ def any_spec(
         raise ValueError("Must provide at least one Spec for 'any' Specs")
 
     if len(preds) == 1:
-        return make_spec(*filter(None, (tag,)), preds[0], conformer=conformer)
+        return make_spec(
+            *filter(None, (tag,)),  # type: ignore[arg-type]  # noqa: F821
+            preds[0],
+            conformer=conformer,
+        )
 
     specs = [make_spec(pred) for pred in preds]
 
@@ -1289,8 +1268,9 @@ def merge_spec(
     input Specs in the order they were provided. Values with exactly one Spec will
     use that Spec as given.
 
-    :param tag_or_pred: an optional tag for the resulting spec or the first Spec
-        or value which can be converted into a Spec
+    :param tag_or_pred: an optional tag for the resulting spec or the first Spec or
+        value which can be converted into a Spec; if no tag is provided, the default is
+        computed as ``"merge-of-spec1-and-spec2-..."``
     :param preds: zero or more mapping Specs or values which can be converted into a
         mapping Spec
     :param conformer: an optional conformer for the value
@@ -1302,7 +1282,11 @@ def merge_spec(
         raise ValueError("Must provide at least one mapping Spec to merge")
 
     if len(preds) == 1:
-        return make_spec(*filter(None, (tag,)), preds[0], conformer=conformer)
+        return make_spec(
+            *filter(None, (tag,)),  # type: ignore[arg-type]  # noqa: F821
+            preds[0],
+            conformer=conformer,
+        )
 
     specs = [make_spec(pred) for pred in preds]
 
@@ -1398,7 +1382,9 @@ def type_spec(
 
 
 def make_spec(  # pylint: disable=inconsistent-return-statements  # noqa: MC0001
-    *args: Union[Tag, SpecPredicate], conformer: Optional[Conformer] = None
+    tag_or_pred: Union[Tag, SpecPredicate],
+    *preds: SpecPredicate,
+    conformer: Optional[Conformer] = None,
 ) -> Spec:
     """
     Create a new Spec instance from a :py:obj:`dataspec.base.SpecPredicate`.
@@ -1451,17 +1437,38 @@ def make_spec(  # pylint: disable=inconsistent-return-statements  # noqa: MC0001
     If both a new tag and conformer are given, a new Spec will be returned with both
     the new tag and conformer.
 
-    :param tag: an optional :py:data:`dataspec.Tag` for the resulting spec
-    :param pred: a value which can be be converted into a :py:class:`dataspec.Spec`
+    :param tag_or_pred: an optional tag for the resulting spec or a Spec or value which
+        can be converted into a Spec; if no tag is provided, the default depends on the
+        input type:
+
+        * for ``frozenset`` and ``set`` predicates, the default is ``"set"``
+
+        * for ``Enum`` predicates, the default is the name of the enum
+
+        * for ``tuple`` predicates, the default is ``"tuple"``
+
+        * for ``list`` (collection) predicates, the default is ``"coll"``
+
+        * for ``dict`` (mapping) predicates, the default is ``"map"``
+
+        * for ``type`` predicates, the default is the name of the type
+
+        * for callable predicates, the default is the name of the function
+
+    :param preds: if a tag is given, exactly one spec predicate; if no tag is given,
+        this should not be specified
     :param conformer: an optional :py:data:`dataspec.Conformer` for the value
     :return: a :py:class:`dataspec.base.Spec` instance
     """
-    tag = args[0] if isinstance(args[0], str) else None
+    tag, preds = tag_maybe(tag_or_pred, *preds)
+
+    if len(preds) != 1:
+        raise TypeError("Expected some spec predicate")
 
     try:
-        pred = args[0] if tag is None else args[1]
+        pred = preds[0]
     except IndexError:
-        raise TypeError("Expected some spec predicate; received only a Tag")
+        raise TypeError("Expected some spec predicate")
 
     if isinstance(pred, (frozenset, set)):
         return SetSpec(tag or "set", pred, conformer=conformer)

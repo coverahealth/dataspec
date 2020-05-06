@@ -87,4 +87,4 @@ Utilities
 ---------
 
 .. automodule:: dataspec
-   :members: pred_to_validator, register_str_format, register_str_format_spec, tag_maybe
+   :members: pred_to_validator, register_str_format, tag_maybe

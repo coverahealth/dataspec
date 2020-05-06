@@ -544,9 +544,19 @@ class TestObjectSpecValidation:
     @pytest.mark.parametrize(
         "pred", [{"id": str, s.opt("id"): int}, {s.opt("id"): int, "id": str},]
     )
-    def test_obj_spec_definition(self, pred):
+    def test_obj_spec_definition_with_duplicate_keys(self, pred):
         with pytest.raises(KeyError):
             s.obj(pred)
+
+    def test_object_spec_construction(self):
+        with pytest.raises(ValueError):
+            s.obj("tag_only")
+
+        with pytest.raises(ValueError):
+            s.obj({"id": str}, {"name": str})
+
+        with pytest.raises(ValueError):
+            s.blankable("tag_and_two", {"id": str}, {"name": str})
 
     @attr.s(auto_attribs=True, frozen=True, slots=True)
     class Person:

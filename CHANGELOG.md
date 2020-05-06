@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (#65)
 - `s.all` and `s.and` now return the result of calling `s(tag, pred, conformer)` if
   passed only one predicate (#72)
+- **Breaking** `ErrorDetails.via` now only includes user-defined (or default) tags.
+  Previously, Spec factories such as `s.str` would inject tags for child validators
+  such as `str_matches_regex` into `via`, making it difficult to programmatically
+  determine which Spec the input value violated (#78)
 - **Breaking** `Spec.conformer` now returns an `dataspec.IConformer` instance, rather
   than a `dataspec.ConformerFn` (#51)
 - `dataspec.Conformer` is now the union of `dataspec.ConformerFn` (a single argument
@@ -39,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `s.opt(k)` (#74)
 - Fixed a bug where string Spec factory error message for values which do not match
   a regex incorrectly indicates that the string _does_ match the regex (#77)
+
+### Removed
+- **Breaking** Removed `register_str_format_spec`; use `register_str_format` to
+  register new string formats for `s.str(format_="...")` (#78)
 
 ## [v0.2.5] - 2020-04-10
 ### Added

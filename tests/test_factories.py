@@ -27,6 +27,16 @@ def test_is_any(v):
 
 
 class TestBlankableSpecValidation:
+    def test_blankable_spec_construction(self):
+        with pytest.raises(ValueError):
+            s.blankable("tag_only")
+
+        with pytest.raises(ValueError):
+            s.blankable(s.is_str, s.is_num)
+
+        with pytest.raises(ValueError):
+            s.blankable("tag_and_two", s.is_str, s.is_num)
+
     @pytest.fixture
     def blankable_spec(self) -> Spec:
         return s.blankable(s.str(regex=r"\d{5}"))
@@ -40,6 +50,7 @@ class TestBlankableSpecValidation:
     )
     def test_blankable_validation_failure(self, blankable_spec: Spec, v):
         assert not blankable_spec.is_valid(v)
+        assert blankable_spec.validate_all(v)
 
 
 class TestBoolValidation:
@@ -208,6 +219,16 @@ class TestBytesSpecValidation:
 
 
 class TestDefaultSpecValidation:
+    def test_default_spec_construction(self):
+        with pytest.raises(ValueError):
+            s.default("tag_only")
+
+        with pytest.raises(ValueError):
+            s.default(s.is_str, s.is_num)
+
+        with pytest.raises(ValueError):
+            s.default("tag_and_two", s.is_str, s.is_num)
+
     @pytest.fixture
     def default_spec(self) -> Spec:
         return s.default(s.str(regex=r"\d{5}"))
@@ -290,9 +311,9 @@ class TestDictTagSpecValidation:
             ),
             (
                 {"name": "Darryl Smith", "license_states": ["NY", "California"]},
-                ["licensures", "license_states", "state", "str_is_exactly_len"],
+                ["licensures", "license_states", "state"],
             ),
-            ({"name": "GaryBusey"}, ["licensures", "name", "str_matches_regex"]),
+            ({"name": "GaryBusey"}, ["licensures", "name"]),
         ],
     )
     def test_error_details(self, v, via):
@@ -960,9 +981,31 @@ class TestInstStringSpecValidation:
         assert INVALID is iso_inst_str_spec.conform(v)
 
 
-@pytest.mark.parametrize("v", [None, "", "a string"])
-def test_nilable(v):
-    assert s.nilable(s.is_str).is_valid(v)
+class TestNilableSpecValidation:
+    def test_nilable_spec_construction(self):
+        with pytest.raises(ValueError):
+            s.nilable("tag_only")
+
+        with pytest.raises(ValueError):
+            s.nilable(s.is_str, s.is_num)
+
+        with pytest.raises(ValueError):
+            s.nilable("tag_and_two", s.is_str, s.is_num)
+
+    @pytest.fixture
+    def nilable_spec(self) -> Spec:
+        return s.nilable(s.str(regex=r"\d{5}"))
+
+    @pytest.mark.parametrize("v", [None, "11111", "12345"])
+    def test_nilable_validation(self, nilable_spec: Spec, v):
+        assert nilable_spec.is_valid(v)
+
+    @pytest.mark.parametrize(
+        "v", ["", "    ", "1234", "1234D", "   12345", {}, set(), []]
+    )
+    def test_nilable_validation_failure(self, nilable_spec: Spec, v):
+        assert not nilable_spec.is_valid(v)
+        assert nilable_spec.validate_all(v)
 
 
 class TestNumSpecValidation:

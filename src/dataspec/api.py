@@ -98,9 +98,12 @@ class SpecAPI:
     __slots__ = ()
 
     def __call__(
-        self, *args: Union[Tag, SpecPredicate], conformer: Optional[Conformer] = None
+        self,
+        tag_or_pred: Union[Tag, SpecPredicate],
+        *preds: SpecPredicate,
+        conformer: Optional[Conformer] = None,
     ) -> Spec:
-        return make_spec(*args, conformer=conformer)
+        return make_spec(tag_or_pred, *preds, conformer=conformer)
 
     __call__.__doc__ = make_spec.__doc__
 
