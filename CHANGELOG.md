@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conformers (#65)
 - Added `s.merge` to allow seamless merging of mapping Specs (#70)
 - Added `ErrorDetails.as_map` to convert `ErrorDetails` instances to simple dicts (#79)
+- Added `s.kv` to validate and conform generic key/value mapping types (#71)
 - Add `s.rename` as a spec factory for validating that values are mapping types and
   providing a default conformer to rename keys (#60)
 
@@ -26,11 +27,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (#65)
 - `s.all` and `s.and` now return the result of calling `s(tag, pred, conformer)` if
   passed only one predicate (#72)
+- **Breaking** `ErrorDetails.via` now only includes user-defined (or default) tags.
+  Previously, Spec factories such as `s.str` would inject tags for child validators
+  such as `str_matches_regex` into `via`, making it difficult to programmatically
+  determine which Spec the input value violated (#78)
 
 ### Fixed
 - Fixed a bug where `s(None)` is not a valid alias for `s(type(None))` (#61)
 - Fixed a bug where it was possible to define duplicate keys in mapping Specs with
   `s.opt(k)` (#74)
+- Fixed a bug where string Spec factory error message for values which do not match
+  a regex incorrectly indicates that the string _does_ match the regex (#77)
+
+### Removed
+- **Breaking** Removed `register_str_format_spec`; use `register_str_format` to
+  register new string formats for `s.str(format_="...")` (#78)
 
 ## [v0.2.5] - 2020-04-10
 ### Added

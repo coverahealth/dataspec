@@ -13,7 +13,7 @@ from dataspec.base import (
     pred_to_validator,
     tag_maybe,
 )
-from dataspec.factories import register_str_format, register_str_format_spec
+from dataspec.factories import register_str_format
 
 __all__ = [
     "INVALID",
@@ -29,7 +29,6 @@ __all__ = [
     "ValidationError",
     "pred_to_validator",
     "register_str_format",
-    "register_str_format_spec",
     "s",
     "tag_maybe",
 ]

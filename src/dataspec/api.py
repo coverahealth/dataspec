@@ -9,6 +9,7 @@ from dataspec.base import (
     ValidationError,
     all_spec,
     any_spec,
+    kv_spec,
     make_spec,
     merge_spec,
 )
@@ -98,9 +99,12 @@ class SpecAPI:
     __slots__ = ()
 
     def __call__(
-        self, *args: Union[Tag, SpecPredicate], conformer: Optional[Conformer] = None
+        self,
+        tag_or_pred: Union[Tag, SpecPredicate],
+        *preds: SpecPredicate,
+        conformer: Optional[Conformer] = None,
     ) -> Spec:
-        return make_spec(*args, conformer=conformer)
+        return make_spec(tag_or_pred, *preds, conformer=conformer)
 
     __call__.__doc__ = make_spec.__doc__
 
@@ -116,6 +120,7 @@ class SpecAPI:
     email = staticmethod(email_spec)
     every = staticmethod(every_spec)
     inst = staticmethod(datetime_spec)
+    kv = staticmethod(kv_spec)
     merge = staticmethod(merge_spec)
     nilable = staticmethod(nilable_spec)
     num = staticmethod(num_spec)
