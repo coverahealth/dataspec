@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Add `s.rename` as a spec factory for validating that values are mapping types and
+  providing a default conformer to rename keys (#60)
 
 ## [v0.3.0]
 ### Added
@@ -17,8 +20,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `s.merge` to allow seamless merging of mapping Specs (#70)
 - Added `ErrorDetails.as_map` to convert `ErrorDetails` instances to simple dicts (#79)
 - Added `s.kv` to validate and conform generic key/value mapping types (#71)
-- Add `s.rename` as a spec factory for validating that values are mapping types and
-  providing a default conformer to rename keys (#60)
 
 ### Changed
 - **Breaking** `Spec.with_conformer` will now replace the default conformer applied
