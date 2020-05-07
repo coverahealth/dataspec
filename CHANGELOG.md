@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Previously, Spec factories such as `s.str` would inject tags for child validators
   such as `str_matches_regex` into `via`, making it difficult to programmatically
   determine which Spec the input value violated (#78)
+- Mapping spec default conformers will now use the same key insertion order as the
+  original mapping spec predicate. Optional keys will now retain their insertion
+  position, rather than being appended at the end of the conformed map. (#82)
 
 ### Fixed
 - Fixed a bug where `s(None)` is not a valid alias for `s(type(None))` (#61)

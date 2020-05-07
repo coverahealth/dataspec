@@ -400,23 +400,35 @@ class TestDictSpecConformation:
                 s.opt("date_of_birth"): s.str(
                     "date_of_birth", format_="iso-date", conformer=fromisoformat
                 ),
+                "favorite_color": {"Red", "Green", "Blue"},
             }
         )
 
     def test_dict_conformation(self, dict_spec: Spec):
         conformed = dict_spec.conform(
-            {"first_name": "chris", "last_name": "rink", "date_of_birth": "1990-01-14"}
+            {
+                "first_name": "chris",
+                "last_name": "rink",
+                "date_of_birth": "1990-01-14",
+                "favorite_color": "Blue",
+            }
         )
         assert isinstance(conformed, dict)
         assert "Chris" == conformed["first_name"]
         assert "Rink" == conformed["last_name"]
         assert date(year=1990, month=1, day=14) == conformed["date_of_birth"]
+        assert ["first_name", "last_name", "date_of_birth", "favorite_color"] == list(
+            conformed.keys()
+        )
 
-        conformed = dict_spec.conform({"first_name": "peter", "last_name": "criss"})
+        conformed = dict_spec.conform(
+            {"first_name": "peter", "last_name": "criss", "favorite_color": "Red"}
+        )
         assert isinstance(conformed, dict)
         assert "Peter" == conformed["first_name"]
         assert "Criss" == conformed["last_name"]
         assert None is conformed.get("date_of_birth")
+        assert ["first_name", "last_name", "favorite_color"] == list(conformed.keys())
 
 
 class TestKVSpecValidation:
