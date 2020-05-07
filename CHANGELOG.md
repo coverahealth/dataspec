@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [v0.3.0]
 ### Added
 - Add `s.dict_tag` as a convenience factory for building mapping specs for which
   the value spec tags are derived automatically from the corresponding dict keys (#52)
@@ -31,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Previously, Spec factories such as `s.str` would inject tags for child validators
   such as `str_matches_regex` into `via`, making it difficult to programmatically
   determine which Spec the input value violated (#78)
+- Mapping spec default conformers will now use the same key insertion order as the
+  original mapping spec predicate. Optional keys will now retain their insertion
+  position, rather than being appended at the end of the conformed map. (#82)
 
 ### Fixed
 - Fixed a bug where `s(None)` is not a valid alias for `s(type(None))` (#61)
@@ -112,6 +117,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial commit
 
 
+[v0.3.0]: https://github.com/coverahealth/dataspec/compare/v0.2.5..v0.3.0
 [v0.2.5]: https://github.com/coverahealth/dataspec/compare/v0.2.4..v0.2.5
 [v0.2.4]: https://github.com/coverahealth/dataspec/compare/v0.2.3..v0.2.4
 [v0.2.3]: https://github.com/coverahealth/dataspec/compare/v0.2.2..v0.2.3
