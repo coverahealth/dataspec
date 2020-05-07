@@ -6,8 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [v0.3.1]
-Fixed `README.rst` reference in `setup.py` for PyPI description.
+## [v0.3.post1]
+Fixed `README.rst` reference and content-type in `setup.py` for PyPI description.
 
 ## [v0.3.0]
 ### Added
@@ -118,7 +118,7 @@ Fixed `README.rst` reference in `setup.py` for PyPI description.
 - Initial commit
 
 
-[v0.3.1]: https://github.com/coverahealth/dataspec/compare/v0.3.0..v0.3.1
+[v0.3.post1]: https://github.com/coverahealth/dataspec/compare/v0.3.0..v0.3.post1
 [v0.3.0]: https://github.com/coverahealth/dataspec/compare/v0.2.5..v0.3.0
 [v0.2.5]: https://github.com/coverahealth/dataspec/compare/v0.2.4..v0.2.5
 [v0.2.4]: https://github.com/coverahealth/dataspec/compare/v0.2.3..v0.2.4
