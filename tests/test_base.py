@@ -400,6 +400,7 @@ class TestDictSpecConformation:
                 s.opt("date_of_birth"): s.str(
                     "date_of_birth", format_="iso-date", conformer=fromisoformat
                 ),
+                "favorite_color": {"Red", "Green", "Blue"},
             }
         )
 
@@ -410,6 +411,7 @@ class TestDictSpecConformation:
             "first_name": "chris",
             "last_name": "rink",
             "date_of_birth": "1990-01-14",
+            "favorite_color": "Blue",
         }
         conformed = dict_spec.conform(data)
         # call dict_spec.conformer directly to exercise non-valid code branch
@@ -418,8 +420,11 @@ class TestDictSpecConformation:
         assert "Chris" == conformed["first_name"]
         assert "Rink" == conformed["last_name"]
         assert date(year=1990, month=1, day=14) == conformed["date_of_birth"]
+        assert ["first_name", "last_name", "date_of_birth", "favorite_color"] == list(
+            conformed.keys()
+        )
 
-        data = {"first_name": "peter", "last_name": "criss"}
+        data = {"first_name": "peter", "last_name": "criss", "favorite_color": "Red"}
         conformed = dict_spec.conform(data)
         # call dict_spec.conformer directly to exercise non-valid code branch
         assert conformed == dict_spec.conformer(data)
@@ -427,6 +432,7 @@ class TestDictSpecConformation:
         assert "Peter" == conformed["first_name"]
         assert "Criss" == conformed["last_name"]
         assert None is conformed.get("date_of_birth")
+        assert ["first_name", "last_name", "favorite_color"] == list(conformed.keys())
 
 
 class TestKVSpecValidation:

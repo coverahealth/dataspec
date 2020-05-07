@@ -668,16 +668,24 @@ class CollSpec(Spec):
             yield from _enrich_errors(self._spec.validate(e), self.tag, i)
 
 
+T_hashable = TypeVar("T_hashable", bound=Hashable)
+
+
 @attr.s(auto_attribs=True, frozen=True, slots=_USE_SLOTS_FOR_GENERIC)
-class OptionalKey(Generic[T]):
-    key: T
+class OptionalKey(Generic[T_hashable]):
+    key: T_hashable
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class _KeySpec:
+    spec: Spec
+    is_optional: bool = False
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class DictSpec(Spec):
     tag: Tag
-    _reqkeyspecs: Mapping[Hashable, Spec] = attr.ib(factory=dict)
-    _optkeyspecs: Mapping[Hashable, Spec] = attr.ib(factory=dict)
+    _keyspecs: Mapping[Hashable, _KeySpec] = attr.ib(factory=dict)
     conformer: Optional[IConformer] = attr.ib(default=None, converter=make_conformer)  # type: ignore[misc]  # noqa
 
     @classmethod
@@ -687,21 +695,16 @@ class DictSpec(Spec):
         kvspec: Mapping[Hashable, SpecPredicate],
         conformer: Optional[Conformer] = None,
     ) -> Spec:
-        reqkeys = {}
-        optkeys: MutableMapping[Any, Spec] = {}
+        keyspecs = {}
         for k, v in kvspec.items():
             if isinstance(k, OptionalKey):
-                if k.key in reqkeys:
-                    raise KeyError(
-                        f"Optional key '{k.key}' duplicates key already defined in required keys"
-                    )
-                optkeys[k.key] = make_spec(v)
+                if k.key in keyspecs:
+                    raise KeyError(f"Optional key '{k.key}' duplicates existing key")
+                keyspecs[k.key] = _KeySpec(make_spec(v), is_optional=True)
             else:
-                if k in optkeys:
-                    raise KeyError(
-                        f"Required key '{k}' duplicates key already defined in optional keys"
-                    )
-                reqkeys[k] = make_spec(v)
+                if k in keyspecs:
+                    raise KeyError(f"Required key '{k}' duplicates existing key")
+                keyspecs[k] = _KeySpec(make_spec(v))
 
         class DictConformer(IConformer):
             def __call__(self, d: Mapping, is_valid: bool = False) -> Mapping:
@@ -709,23 +712,23 @@ class DictSpec(Spec):
 
             def conform(self, d: Mapping) -> Mapping:
                 conformed_d = {}
-                for k, spec in reqkeys.items():
-                    conformed_d[k] = spec.conform(d[k])
-
-                for k, spec in optkeys.items():
-                    if k in d:
-                        conformed_d[k] = spec.conform(d[k])
+                for k, keyspec in keyspecs.items():
+                    if keyspec.is_optional:
+                        if k in d:
+                            conformed_d[k] = keyspec.spec.conform(d[k])
+                    else:
+                        conformed_d[k] = keyspec.spec.conform(d[k])
 
                 return conformed_d
 
             def conform_valid(self, d: Mapping) -> Mapping:
                 conformed_d = {}
-                for k, spec in reqkeys.items():
-                    conformed_d[k] = spec.conform_valid(d[k])
-
-                for k, spec in optkeys.items():
-                    if k in d:
-                        conformed_d[k] = spec.conform_valid(d[k])
+                for k, keyspec in keyspecs.items():
+                    if keyspec.is_optional:
+                        if k in d:
+                            conformed_d[k] = keyspec.spec.conform_valid(d[k])
+                    else:
+                        conformed_d[k] = keyspec.spec.conform_valid(d[k])
 
                 return conformed_d
 
@@ -733,24 +736,31 @@ class DictSpec(Spec):
 
         return cls(
             tag or "map",
-            reqkeyspecs=reqkeys,
-            optkeyspecs=optkeys,
+            keyspecs=keyspecs,
             conformer=conform_mapping.compose(conformer),
         )
 
     def validate(self, d) -> Iterator[ErrorDetails]:  # pylint: disable=arguments-differ
         try:
-            for k, vspec in self._reqkeyspecs.items():
-                if k in d:
-                    yield from _enrich_errors(vspec.validate(d[k]), self.tag, k)
+            for k, keyspec in self._keyspecs.items():
+                if keyspec.is_optional:
+                    if k in d:
+                        yield from _enrich_errors(
+                            keyspec.spec.validate(d[k]), self.tag, k
+                        )
                 else:
-                    yield ErrorDetails(
-                        message=f"Mapping missing key {k}",
-                        pred=vspec,
-                        value=d,
-                        via=[self.tag],
-                        path=[k],
-                    )
+                    if k in d:
+                        yield from _enrich_errors(
+                            keyspec.spec.validate(d[k]), self.tag, k
+                        )
+                    else:
+                        yield ErrorDetails(
+                            message=f"Mapping missing key {k}",
+                            pred=keyspec.spec,
+                            value=d,
+                            via=[self.tag],
+                            path=[k],
+                        )
         except (AttributeError, TypeError):
             yield ErrorDetails(
                 message="Value is not a mapping type",
@@ -759,10 +769,6 @@ class DictSpec(Spec):
                 via=[self.tag],
             )
             return
-
-        for k, vspec in self._optkeyspecs.items():
-            if k in d:
-                yield from _enrich_errors(vspec.validate(d[k]), self.tag, k)
 
     # pylint: disable=protected-access
     @classmethod
@@ -776,11 +782,10 @@ class DictSpec(Spec):
 
         map_pred: MutableMapping[Hashable, List[SpecPredicate]] = defaultdict(list)
         for spec in specs:
-            for k, pred in spec._reqkeyspecs.items():
-                map_pred[k].append(pred)
-
-            for k, pred in spec._optkeyspecs.items():
-                map_pred[OptionalKey(k)].append(pred)
+            for k, keyspec in spec._keyspecs.items():
+                map_pred[OptionalKey(k) if keyspec.is_optional else k].append(
+                    keyspec.spec
+                )
 
         return cls.from_val(
             tag or f"merge-of-{'-'.join(spec.tag for spec in specs)}",
