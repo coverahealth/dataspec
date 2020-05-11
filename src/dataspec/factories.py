@@ -92,10 +92,15 @@ def blankable_spec(
                 message=f"Value '{e}' is not blank", pred=blank_or_pred, value=e,
             )
 
+    def conform_blankable(e):
+        if e == "":
+            return e
+        return spec.conform(e)
+
     return ValidatorSpec(
         tag or "blankable",
         blank_or_pred,
-        conformer=compose_conformers(spec.conformer, conformer),
+        conformer=compose_conformers(conform_blankable, conformer),
     )
 
 
@@ -873,10 +878,15 @@ def nilable_spec(
                 message=f"Value '{e}' is not None", pred=nil_or_pred, value=e,
             )
 
+    def conform_nilable(e):
+        if e is None:
+            return e
+        return spec.conform(e)
+
     return ValidatorSpec(
         tag or "nilable",
         nil_or_pred,
-        conformer=compose_conformers(spec.conformer, conformer),
+        conformer=compose_conformers(conform_nilable, conformer),
     )
 
 

@@ -53,6 +53,17 @@ class TestBlankableSpecValidation:
         assert blankable_spec.validate_all(v)
 
 
+class TestBlankableSpecConformation:
+    @pytest.fixture
+    def blankable_spec(self) -> Spec:
+        return s.blankable(s.date("date", format_="%Y%m%d", conformer=str))
+
+    @pytest.mark.parametrize("v,conformed", [("", ""), ("20200314", "2020-03-14")])
+    def test_blankable_conformation(self, blankable_spec: Spec, v, conformed):
+        assert blankable_spec.is_valid(v)
+        assert conformed == blankable_spec.conform(v)
+
+
 class TestBoolValidation:
     @pytest.mark.parametrize("v", [True, False])
     def test_bool(self, v):
@@ -1006,6 +1017,17 @@ class TestNilableSpecValidation:
     def test_nilable_validation_failure(self, nilable_spec: Spec, v):
         assert not nilable_spec.is_valid(v)
         assert nilable_spec.validate_all(v)
+
+
+class TestNilableSpecConformation:
+    @pytest.fixture
+    def nilable_spec(self) -> Spec:
+        return s.nilable(s.date("date", format_="%Y%m%d", conformer=str))
+
+    @pytest.mark.parametrize("v,conformed", [(None, None), ("20200314", "2020-03-14")])
+    def test_blankable_conformation(self, nilable_spec: Spec, v, conformed):
+        assert nilable_spec.is_valid(v)
+        assert conformed == nilable_spec.conform(v)
 
 
 class TestNumSpecValidation:
